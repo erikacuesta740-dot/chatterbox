@@ -133,7 +133,7 @@ test('plantillas reales (no verificadas): 40 clubes, sin duplicados y marcadas',
   // Las ligas sin plantillas reales siguen siendo ficticias y marcadas
   assert.ok(C.squad(s, 'inter').every((p) => p.demo));
   // Cada club tiene plantilla suficiente en todas las líneas
-  Object.values(s.clubs).forEach((c) => {
+  Object.values(s.clubs).filter((c) => !c.ext).forEach((c) => {
     const sq = C.squad(s, c.id);
     assert.ok(sq.filter((p) => p.pos === 'POR').length >= 2, c.id + ' sin porteros suficientes');
     assert.ok(sq.length >= 21, c.id + ' plantilla corta');

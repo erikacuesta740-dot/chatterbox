@@ -43,19 +43,12 @@
 
   function ledger(s, concept, amount, kind) {
     const m = s.market;
-    m.ledger.unshift({ season: s.season.label, md: C().userLeague(s).played, concept, amount, kind });
+    m.ledger.unshift({ season: s.season.label, md: s.week || 0, date: s.date || null, concept, amount, kind });
     if (m.ledger.length > 300) m.ledger.length = 300;
   }
 
   // ---------- Ventana de fichajes ----------
-  T.currentDate = function (s) {
-    const L = C().userLeague(s);
-    const md = C().nextMd(s);
-    if (!md) return s.season.year + 1 + '-06-30';
-    if (L.played === 0) return s.season.year + '-08-01';
-    const f = L.fixtures.find((x) => x.md === md);
-    return f ? f.date : s.season.year + '-08-01';
-  };
+  T.currentDate = (s) => s.date || s.season.year + '-08-01';
   T.window = function (s) {
     const d = T.currentDate(s);
     const y = s.season.year;
@@ -438,8 +431,7 @@
   };
 
   T.releaseCost = function (s, p) {
-    const md = C().userLeague(s);
-    const weeksLeftSeason = Math.max(0, md.totalMd - md.played);
+    const weeksLeftSeason = Math.max(0, 41 - (s.week || 0));
     const weeks = weeksLeftSeason + T.yearsLeft(s, p) * 46;
     return roundMoney(p.wage * weeks * 0.5);
   };
@@ -467,7 +459,7 @@
   // ---------- Simulación semanal ----------
   function generateOffers(s, rng) {
     const m = s.market;
-    const md = C().userLeague(s).played;
+    const md = s.week || 0;
     const open = T.window(s).open;
     m.offers.forEach((o) => { if (o.status === 'pending' && (md > o.expiresMd || !open)) o.status = 'expired'; });
     if (!open) return;
@@ -551,18 +543,14 @@
   // Ingresos por taquilla de un partido en casa
   T.ticketIncome = (club) => roundMoney(1.6e6 * Math.pow(club.rep / 95, 2.8));
 
-  T.weekly = function (s, homeGame) {
+  T.weekly = function (s) {
     T.init(s);
-    const rng = U.rng(s.seed + ':mk:' + s.season.label + ':' + C().userLeague(s).played);
-    const fin = s.market.fin;
-    const club = s.clubs[s.clubId];
-    fin.expense.wages += C().wageBill(s, s.clubId);
-    if (homeGame) fin.income.tickets += T.ticketIncome(club);
+    const rng = U.rng(s.seed + ':mk:' + s.season.label + ':' + (s.week || 0));
+    s.market.fin.expense.wages += C().wageBill(s, s.clubId);
     aiWindow(s, rng);
     generateOffers(s, rng);
     // Aviso de contratos que vencen a mitad de temporada
-    const L = C().userLeague(s);
-    if (L.played === Math.floor(L.totalMd / 2)) {
+    if (s.week === 20) {
       const exp = C().squad(s, s.clubId).filter((p) => !p.loan && p.contractEnd <= s.season.year + 1);
       if (exp.length) C().news(s, 'contract', 'Contratos que vencen en junio', exp.map((p) => p.name).join(', ') + '. Si no renuevan, se marcharán libres al final de la temporada.');
     }

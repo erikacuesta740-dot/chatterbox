@@ -10,7 +10,7 @@
   const SC = MCM.schedule;
   const C = (MCM.career = {});
 
-  C.SCHEMA = 2;
+  C.SCHEMA = 3;
   C.START_YEAR = 2026;
   C.seasonLabel = (y) => y + '/' + String(y + 1).slice(2);
 
@@ -28,9 +28,48 @@
     return Math.round(U.avg(xi.map((p) => p.ovr)));
   };
 
+  // ---------- Dorsales, capitán y lanzadores ----------
+  const PREF_NUM = { POR: [1, 13, 25], DFC: [4, 5, 3, 2, 15, 24], LD: [2, 12, 22], LI: [3, 18, 23], MCD: [6, 16, 5], MC: [8, 14, 16, 6], MCO: [10, 20, 21], MD: [17, 7], MI: [11, 19], ED: [7, 17, 27], EI: [11, 19, 29], DC: [9, 19, 20] };
+  C.ensureNumbers = function (s, clubId) {
+    const sq = C.squad(s, clubId);
+    const used = new Set();
+    sq.forEach((p) => { if (p.number && !used.has(p.number)) used.add(p.number); else p.number = null; });
+    sq.slice().sort((a, b) => b.ovr - a.ovr).forEach((p) => {
+      if (p.number) return;
+      const pref = (PREF_NUM[p.pos] || []).find((n) => !used.has(n));
+      let n = pref;
+      if (!n) { n = 14; while (used.has(n)) n++; }
+      p.number = n;
+      used.add(n);
+    });
+  };
+  C.takers = function (s, clubId) {
+    const club = s.clubs[clubId];
+    const sq = C.squad(s, clubId).filter((p) => !p.loan || p.clubId === clubId);
+    const t = Object.assign({}, club.takers || {});
+    const has = (id) => id && sq.some((p) => p.id === id);
+    const best = (fn) => sq.slice().sort((a, b) => fn(b) - fn(a))[0];
+    if (!has(t.captain)) t.captain = (best((p) => p.ovr + Math.min(p.age, 32) * 0.6) || {}).id || null;
+    if (!has(t.pen)) t.pen = (best((p) => (p.attrs.sho || 0) + (p.pos === 'DC' ? 3 : 0)) || {}).id || null;
+    if (!has(t.fk)) t.fk = (best((p) => (p.attrs.sho || 0) * 0.5 + (p.attrs.pas || 0) * 0.5) || {}).id || null;
+    if (!has(t.corner)) t.corner = (best((p) => (p.attrs.pas || 0)) || {}).id || null;
+    return t;
+  };
+
   C.squadValue = (s, clubId) => U.sum(C.squad(s, clubId).map((p) => p.value));
   C.wageBill = (s, clubId) => U.sum(C.squad(s, clubId).map((p) => p.wage));
 
+  // ---------- Calendario por fechas ----------
+  C.fixtures = (s) => MCM.comps.fixtures(s);
+  C.userFixtures = (s) => C.fixtures(s).filter((f) => f.home === s.clubId || f.away === s.clubId).sort((a, b) => a.date.localeCompare(b.date));
+  C.nextUserFixture = (s) => C.userFixtures(s).find((f) => !f.played) || null;
+  C.lastUserFixture = (s) => C.userFixtures(s).filter((f) => f.played).pop() || null;
+  C.seasonFinished = (s) => C.fixtures(s).every((f) => f.played);
+  C.compOf = (s, f) => (s.leagues[f.comp] ? s.leagues[f.comp] : s.comps[f.comp]);
+  C.gamesPlayed = function (s, clubId) {
+    return C.fixtures(s).filter((f) => f.played && (f.home === clubId || f.away === clubId)).length;
+  };
+  // Compatibilidad: jornada siguiente de la liga del usuario
   C.nextMd = (s) => {
     const L = C.userLeague(s);
     return L.played < L.totalMd ? L.played + 1 : null;
@@ -40,7 +79,6 @@
     md = md || C.nextMd(s);
     return L.fixtures.find((f) => f.md === md && (f.home === s.clubId || f.away === s.clubId)) || null;
   };
-  C.seasonFinished = (s) => C.nextMd(s) === null;
 
   // ---------- Noticias ----------
   C.news = function (s, type, title, body, extra) {
@@ -48,6 +86,7 @@
       id: 'n' + (s.newsSeq = (s.newsSeq || 0) + 1),
       season: s.season.label,
       md: C.userLeague(s).played,
+      date: s.date || null,
       type, title, body, read: false,
     }, extra || {}));
     if (s.news.length > 200) s.news.length = 200;
@@ -81,19 +120,27 @@
   // ---------- Temporada ----------
   function seasonStartDate(year) { return year + '-08-15'; }
 
-  function setupSeason(s) {
+  function setupSeason(s, prevTables, cupWinners) {
     const rng = U.rng(s.seed + ':sched:' + s.season.year);
     Object.values(s.leagues).forEach((L) => {
       const r = SC.roundRobin(L.clubIds, rng);
       L.fixtures = r.fixtures;
       L.totalMd = r.totalMd;
       L.played = 0;
-      const start = seasonStartDate(s.season.year);
-      L.fixtures.forEach((f) => {
-        f.date = U.addDays(start, Math.round(((f.md - 1) * 280) / Math.max(1, L.totalMd - 1)));
-      });
+      const dates = MCM.comps.leagueDates(s.season.year, L.totalMd);
+      L.fixtures.forEach((f) => { f.date = dates[f.md - 1]; f.comp = L.id; f.round = 'Jornada ' + f.md; });
     });
     setObjectives(s);
+    if (!prevTables) {
+      // Primera temporada: clasificación europea según el nivel de los clubes
+      prevTables = {};
+      Object.values(s.leagues).forEach((L) => {
+        prevTables[L.id] = L.clubIds.slice().sort((a, b) => C.teamRating(s, b) - C.teamRating(s, a) || s.clubs[b].rep - s.clubs[a].rep);
+      });
+    }
+    MCM.comps.setupSeason(s, prevTables, cupWinners);
+    s.date = s.season.year + '-08-01';
+    s.week = 0;
     const club = C.userClub(s);
     club.lineup = LU.autoPick(C.squad(s, s.clubId), club.tactics.formation);
     s.season.finished = false;
@@ -159,10 +206,11 @@
       xi: lineup.xi.map((id) => (id ? s.players[id] : null)),
       bench: (lineup.bench || []).map((id) => s.players[id]).filter(Boolean),
       tactics: club.tactics,
+      takers: clubId === s.clubId ? C.takers(s, clubId) : null,
     };
   }
 
-  function applyPlayers(s, side, res, sideIdx, rng, isUser) {
+  function applyPlayers(s, side, res, sideIdx, rng, isUser, isLeague) {
     const club = side.club;
     const goalsFor = sideIdx === 0 ? res.hg : res.ag;
     const goalsAg = sideIdx === 0 ? res.ag : res.hg;
@@ -194,7 +242,7 @@
       const c = res.cards[p.id] || 0;
       if (c === 1) {
         st.yel++;
-        p.yc++;
+        if (isLeague) p.yc++;
         if (p.yc >= 5) {
           p.yc = 0;
           p.suspension = 1;
@@ -213,7 +261,7 @@
     res.injuries.filter((i) => i.side === sideIdx).forEach((inj) => {
       const p = s.players[inj.pid];
       const type = inj.weeks <= 2 ? 'Molestias musculares' : inj.weeks <= 5 ? 'Lesión muscular' : inj.weeks <= 10 ? 'Esguince de tobillo' : 'Lesión de rodilla';
-      p.injury = { weeks: inj.weeks, type };
+      p.injury = { weeks: inj.weeks, days: inj.weeks * 7, type };
       p.injuries.push({ season: s.season.label, weeks: inj.weeks, type });
       if (isUser) C.news(s, 'injury', p.name + ' cae lesionado', p.name + ' sufre ' + type.toLowerCase() + '. Baja estimada: ' + inj.weeks + (inj.weeks === 1 ? ' semana.' : ' semanas.'), { pid: p.id });
     });
@@ -240,64 +288,82 @@
     return { formation: side.club.tactics.formation, xi: list, subs };
   }
 
-  function playFixture(s, L, f, detailed, notices) {
-    const rng = U.rng(s.seed + ':m:' + s.season.year + ':' + L.id + ':' + f.id);
+  function koOpts(s, comp, f) {
+    if (!f.knockout) return { neutral: !!f.neutral };
+    let prior = [0, 0];
+    if (f.firstLeg) {
+      const f1 = comp.fixtures.find((x) => x.id === f.firstLeg);
+      // En la ida, el local era el visitante de la vuelta
+      if (f1 && f1.played) prior = [f1.ag, f1.hg];
+    }
+    return { knockout: true, prior, neutral: !!f.neutral };
+  }
+
+  /* Prepara un partido (lados y opciones) sin jugarlo: lo usa el partido en directo. */
+  C.prepareMatch = function (s, f, notices) {
+    const comp = C.compOf(s, f);
     const home = buildSide(s, f.home, f.home === s.clubId ? notices : null);
     const away = buildSide(s, f.away, f.away === s.clubId ? notices : null);
-    const res = MCM.match.simulate(home, away, rng);
+    const rng = U.rng(s.seed + ':m:' + s.season.year + ':' + f.comp + ':' + f.id);
+    return { home, away, rng, opts: koOpts(s, comp, f) };
+  };
+
+  /* Aplica un resultado ya simulado a la carrera (clasificaciones, jugadores, noticias, premios). */
+  C.applyResult = function (s, f, prep, res, notices) {
+    const { home, away, rng } = prep;
+    const comp = C.compOf(s, f);
+    const isLeague = !!s.leagues[f.comp];
     f.played = true;
     f.hg = res.hg;
     f.ag = res.ag;
+    if (res.et) f.et = true;
+    if (res.pens) f.pens = res.pens;
+    if (res.winner != null) f.winner = res.winner === 0 ? f.home : f.away;
     const isUserMatch = f.home === s.clubId || f.away === s.clubId;
-    applyPlayers(s, home, res, 0, rng, f.home === s.clubId);
-    applyPlayers(s, away, res, 1, rng, f.away === s.clubId);
+    applyPlayers(s, home, res, 0, rng, f.home === s.clubId, isLeague);
+    applyPlayers(s, away, res, 1, rng, f.away === s.clubId, isLeague);
+    MCM.comps.matchPrize(s, f);
     const nameOf = (id) => C.nameOf(s, id);
-    if (detailed) {
-      f.goals = res.events.filter((e) => e.type === 'goal').map((e) => [e.min, e.side, nameOf(e.pid)]);
-    }
+    if (isLeague && f.comp === C.userClub(s).leagueId) f.goals = res.events.filter((e) => e.type === 'goal').map((e) => [e.min, e.side, nameOf(e.pid)]);
     if (isUserMatch) {
+      if (f.home === s.clubId && !f.neutral && s.market) s.market.fin.income.tickets += Math.round(MCM.market.ticketIncome(C.userClub(s)) * (isLeague ? 1 : s.comps[f.comp].type === 'euro' ? 1.4 : 0.6));
       f.report = {
         summary: MCM.match.summary(res, home.club.name, away.club.name, nameOf, rng),
         stats: res.stats,
         events: res.events.map((e) => ({
-          min: e.min, type: e.type, side: e.side, name: nameOf(e.pid),
+          min: e.min, type: e.type, side: e.side, name: e.pid ? nameOf(e.pid) : null, score: e.score || null, pen: !!e.pen,
           assist: e.aid ? nameOf(e.aid) : null, out: e.outId ? nameOf(e.outId) : null, weeks: e.weeks || null, second: !!e.second,
         })),
         motm: res.motm ? { name: nameOf(res.motm), r: res.ratings[res.motm], side: home.xi.concat(home.bench).some((p) => p && p.id === res.motm) ? 0 : 1 } : null,
         lineups: [snapshotSide(s, home, res, 0), snapshotSide(s, away, res, 1)],
         notices: notices ? notices.slice() : [],
+        pens: res.pens || null,
+        penKicks: res.penKicks ? res.penKicks.map((list) => list.map((k) => (k ? { name: nameOf(k.pid), ok: k.ok } : null))) : null,
       };
-      matchNews(s, f);
+      matchNews(s, f, comp);
+      if (isLeague) streakNews(s);
     }
     return res;
+  };
+
+  function playFixture(s, f, notices) {
+    const prep = C.prepareMatch(s, f, notices);
+    const res = MCM.match.simulate(prep.home, prep.away, prep.rng, prep.opts);
+    return C.applyResult(s, f, prep, res, notices);
   }
 
-  function matchNews(s, f) {
+  function matchNews(s, f, comp) {
     const home = s.clubs[f.home];
     const away = s.clubs[f.away];
     const isHome = f.home === s.clubId;
     const gf = isHome ? f.hg : f.ag;
     const ga = isHome ? f.ag : f.hg;
     const rival = isHome ? away : home;
-    const title = gf > ga ? 'Victoria ante ' + rival.name : gf < ga ? 'Derrota ante ' + rival.name : 'Empate ante ' + rival.name;
-    C.news(s, 'match', title + ' (' + f.hg + '-' + f.ag + ')', f.report.summary, { fixtureId: f.id, leagueId: home.leagueId });
-  }
-
-  function weeklyTick(s) {
-    Object.values(s.players).forEach((p) => {
-      if (p.injury && p.injury.weeks > 0) {
-        p.injury.weeks--;
-        if (p.injury.weeks === 0) {
-          p.injury = null;
-          p.fitness = Math.min(p.fitness, 75);
-          if (p.clubId === s.clubId) C.news(s, 'injury', p.name + ' recibe el alta', p.name + ' se ha recuperado y vuelve a estar disponible.', { pid: p.id });
-        }
-      }
-      const phy = p.attrs.phy || 70;
-      const rec = 16 + (phy - 65) / 8 - (p.age >= 31 ? 3 : 0);
-      p.fitness = U.clamp(p.fitness + rec, 20, 100);
-      p.morale += (65 - p.morale) * 0.05;
-    });
+    const won = f.winner ? f.winner === s.clubId : gf > ga;
+    const lost = f.winner ? f.winner !== s.clubId : gf < ga;
+    const tag = s.leagues[f.comp] ? '' : comp.short + ': ';
+    const title = tag + (won ? 'Victoria ante ' : lost ? 'Derrota ante ' : 'Empate ante ') + rival.name + ' (' + f.hg + '-' + f.ag + (f.pens ? ', pen. ' + f.pens[0] + '-' + f.pens[1] : '') + ')';
+    C.news(s, 'match', title, f.report.summary, { fixtureId: f.id, comp: f.comp });
   }
 
   function streakNews(s) {
@@ -319,65 +385,158 @@
 
     const table = SC.table(L);
     const leader = table[0];
-    if (L.played >= 3 && s._leader !== leader.clubId) {
+    if (mine.length >= 3 && s._leader !== leader.clubId) {
       if (leader.clubId === s.clubId) C.news(s, 'table', 'Líderes de ' + L.name, club.name + ' asalta el liderato con ' + leader.pts + ' puntos.');
       else if (s._leader === s.clubId) C.news(s, 'table', 'Se pierde el liderato', s.clubs[leader.clubId].name + ' supera a ' + club.name + ' en la clasificación.');
     }
     s._leader = leader.clubId;
-    if (L.played === Math.floor(L.totalMd / 2)) {
+    if (mine.length === Math.floor(L.totalMd / 2)) {
       const me = table.find((r) => r.clubId === s.clubId);
       const ok = me.pos <= club.objective.target;
       C.news(s, 'board', 'Balance de mitad de temporada',
-        'Tras ' + L.played + ' jornadas, ' + club.name + ' es ' + me.pos + 'º con ' + me.pts + ' puntos. Objetivo: ' + club.objective.text.toLowerCase() + '. ' +
+        'Tras ' + mine.length + ' jornadas, ' + club.name + ' es ' + me.pos + 'º con ' + me.pts + ' puntos. Objetivo: ' + club.objective.text.toLowerCase() + '. ' +
         (ok ? 'La directiva está satisfecha con la marcha del equipo.' : 'La directiva espera una mejora en la segunda vuelta.'));
     }
   }
 
-  function advanceOtherLeagues(s, fraction) {
-    const userL = C.userLeague(s);
+  function daysBetween(a, b) {
+    return Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
+  }
+
+  // Paso del tiempo entre dos fechas: recuperación física diaria, lesiones y tareas semanales.
+  function passDays(s, toDate) {
+    const from = s.date || toDate;
+    const days = Math.max(0, daysBetween(from, toDate));
+    if (days) {
+      Object.values(s.players).forEach((p) => {
+        if (p.injury) {
+          if (p.injury.days == null) p.injury.days = (p.injury.weeks || 1) * 7;
+          p.injury.days -= days;
+          p.injury.weeks = Math.max(0, Math.ceil(p.injury.days / 7));
+          if (p.injury.days <= 0) {
+            p.injury = null;
+            p.fitness = Math.min(p.fitness, 75);
+            if (p.clubId === s.clubId && !p.academy) C.news(s, 'injury', p.name + ' recibe el alta', p.name + ' se ha recuperado y vuelve a estar disponible.', { pid: p.id });
+          }
+        }
+        const phy = p.attrs.phy || 70;
+        const rec = (16 + (phy - 65) / 8 - (p.age >= 31 ? 3 : 0)) / 7;
+        p.fitness = U.clamp(p.fitness + rec * days, 20, 100);
+        p.morale += (65 - p.morale) * 0.007 * days;
+      });
+    }
+    s.date = toDate;
+    const start = MCM.comps.seasonStart(s.season.year);
+    const week = Math.max(0, Math.floor(daysBetween(start, toDate) / 7));
+    while ((s.week || 0) < week) {
+      s.week = (s.week || 0) + 1;
+      MCM.market.weekly(s);
+      if (MCM.dev) MCM.dev.weekly(s);
+    }
+  }
+
+  function updateLeagueProgress(s) {
     Object.values(s.leagues).forEach((L) => {
-      if (L === userL) return;
-      const target = fraction >= 1 ? L.totalMd : Math.round(L.totalMd * fraction);
-      while (L.played < target) {
-        const md = L.played + 1;
-        L.fixtures.filter((f) => f.md === md && !f.played).forEach((f) => playFixture(s, L, f, false, null));
+      let md = L.played;
+      while (md < L.totalMd && L.fixtures.filter((f) => f.md === md + 1).every((f) => f.played)) md++;
+      if (md !== L.played) {
         L.played = md;
+        if (md === L.totalMd) {
+          const t = SC.table(L);
+          const champ = s.clubs[t[0].clubId];
+          C.news(s, 'season', 'Campeón de ' + L.name, champ.name + ' se proclama campeón de ' + L.name + ' ' + s.season.label + '.');
+          C.addTrophy(s, champ.id, L.name);
+        }
       }
     });
   }
 
-  /** Simula solo el partido del club del usuario en la jornada actual. */
+  /* Juega todos los partidos de una fecha (opcionalmente dejando el del usuario pendiente). */
+  function playDate(s, date, skipUser) {
+    passDays(s, date);
+    C.fixtures(s).filter((f) => !f.played && f.date === date).forEach((f) => {
+      const mine = f.home === s.clubId || f.away === s.clubId;
+      if (mine && skipUser) return;
+      playFixture(s, f, mine ? [] : null);
+    });
+    updateLeagueProgress(s);
+    MCM.comps.progress(s);
+  }
+
+  function nextDate(s, maxDate, excludeUserOn) {
+    let best = null;
+    C.fixtures(s).forEach((f) => {
+      if (f.played) return;
+      if (excludeUserOn && f.date === excludeUserOn && (f.home === s.clubId || f.away === s.clubId)) return;
+      if (maxDate && f.date > maxDate) return;
+      if (!best || f.date < best) best = f.date;
+    });
+    return best;
+  }
+
+  /** Avanza hasta el día del próximo partido del usuario, dejando ese partido pendiente. */
+  C.playUntilUserMatch = function (s) {
+    const target = C.nextUserFixture(s);
+    if (!target) return null;
+    let guard = 0;
+    for (;;) {
+      const d = nextDate(s, target.date, target.date);
+      if (!d || guard++ > 400) break;
+      playDate(s, d, d === target.date);
+    }
+    passDays(s, target.date);
+    return target;
+  };
+
+  /** Juega el próximo partido del usuario (y todo lo anterior). */
   C.playUserMatch = function (s) {
-    const md = C.nextMd(s);
-    if (!md) return null;
-    const f = C.userFixture(s, md);
-    if (!f || f.played) return f;
-    playFixture(s, C.userLeague(s), f, true, []);
+    const f = C.playUntilUserMatch(s);
+    if (!f) return null;
+    playFixture(s, f, []);
+    updateLeagueProgress(s);
+    MCM.comps.progress(s);
+    if (C.seasonFinished(s)) s.season.finished = true;
     s.updatedAt = new Date().toISOString();
     return f;
   };
 
-  /** Completa la jornada actual en todas las ligas. */
-  C.playMatchday = function (s) {
-    const md = C.nextMd(s);
-    if (!md) return null;
-    const L = C.userLeague(s);
-    const userF = C.userFixture(s, md);
-    if (userF && !userF.played) playFixture(s, L, userF, true, []);
-    L.fixtures.filter((f) => f.md === md && !f.played).forEach((f) => playFixture(s, L, f, true, null));
-    L.played = md;
-    advanceOtherLeagues(s, L.played / L.totalMd);
-    weeklyTick(s);
-    MCM.market.weekly(s, !!(userF && userF.home === s.clubId));
-    if (MCM.dev) MCM.dev.weekly(s);
-    streakNews(s);
-    if (L.played === L.totalMd) {
-      s.season.finished = true;
-      const table = SC.table(L);
-      C.news(s, 'season', 'Campeón de ' + L.name, s.clubs[table[0].clubId].name + ' se proclama campeón de ' + L.name + ' ' + s.season.label + '.');
-    }
+  /** Aplica el resultado de un partido jugado en directo. */
+  C.finishLiveMatch = function (s, f, prep, res) {
+    C.applyResult(s, f, prep, res, []);
+    updateLeagueProgress(s);
+    MCM.comps.progress(s);
+    if (C.seasonFinished(s)) s.season.finished = true;
     s.updatedAt = new Date().toISOString();
-    return { md, fixtures: L.fixtures.filter((f) => f.md === md), userFixture: userF };
+    return f;
+  };
+
+  /** Simula el resto de la temporada (o hasta una fecha). */
+  C.simulateUntil = function (s, maxDate) {
+    let guard = 0;
+    for (;;) {
+      const d = nextDate(s, maxDate, null);
+      if (!d || guard++ > 800) break;
+      playDate(s, d, false);
+    }
+    if (C.seasonFinished(s)) s.season.finished = true;
+    s.updatedAt = new Date().toISOString();
+  };
+
+  /** Compatibilidad: juega el siguiente partido del usuario (o el resto si ya no tiene). */
+  C.playMatchday = function (s) {
+    const f = C.playUserMatch(s);
+    if (!f) C.simulateUntil(s);
+    return { userFixture: f };
+  };
+
+  // ---------- Trofeos ----------
+  C.addTrophy = function (s, clubId, name) {
+    s.trophies = s.trophies || {};
+    (s.trophies[clubId] = s.trophies[clubId] || []).push({ season: s.season.label, name });
+    if (clubId === s.clubId) {
+      s.managerTrophies = s.managerTrophies || [];
+      s.managerTrophies.push({ season: s.season.label, name, club: s.clubs[clubId].name });
+    }
   };
 
   // ---------- Cierre de temporada ----------
@@ -393,8 +552,10 @@
     if (p.clubId && s.clubs[p.clubId]) s.clubs[p.clubId].squad = s.clubs[p.clubId].squad.filter((id) => id !== p.id);
     s.freeAgents = s.freeAgents.filter((id) => id !== p.id);
     p.clubId = toClubId;
-    if (toClubId) s.clubs[toClubId].squad.push(p.id);
-    else s.freeAgents.push(p.id);
+    if (toClubId) {
+      s.clubs[toClubId].squad.push(p.id);
+      if (toClubId === s.clubId) { p.number = null; C.ensureNumbers(s, toClubId); }
+    } else s.freeAgents.push(p.id);
   }
   C.movePlayer = movePlayer;
 
@@ -403,7 +564,7 @@
     const L = s.leagues[club.leagueId];
     const base = MCM.generator.baseOvr(club.rep);
     const p = MCM.generator.createPlayer(ctx, {
-      pos, age: rng.int(16, 18), ovr: base - rng.range(14, 22), leagueNat: L.nat, rep: club.rep + 5,
+      pos, age: rng.int(16, 18), ovr: base - rng.range(14, 22), leagueNat: L ? L.nat : (MCM.DATA.nations[club.nat] ? club.nat : 'ENG'), rep: club.rep + 5,
       wealth: club.wealth, clubId: club.id, contractEnd: s.season.year + 3, youth: true,
     });
     p.pot = U.clamp(p.ovr + rng.int(10, 26), p.ovr, 92);
@@ -414,12 +575,30 @@
     return p;
   }
 
+  /** Hasta dónde llegó un club en cada copa y competición europea. */
+  C.compRuns = function (s, clubId) {
+    const out = [];
+    MCM.comps.all(s).forEach((c) => {
+      if (!c.participants.includes(clubId)) return;
+      let reached;
+      if (c.winner === clubId) reached = 'Campeón';
+      else {
+        const mine = c.fixtures.filter((f) => f.home === clubId || f.away === clubId);
+        const last = mine[mine.length - 1];
+        reached = last ? (last.phase === 'league' ? 'Fase liga' : last.round.replace(/ \((ida|vuelta)\)$/, '')) : 'Sin jugar';
+        if (last && last.round === 'Final') reached = 'Subcampeón';
+      }
+      out.push({ comp: c.id, name: c.name, reached });
+    });
+    return out;
+  };
+
   const MIN_LINES = { GK: 2, DEF: 7, MID: 6, ATT: 4 };
   const LINE_POS = { GK: ['POR'], DEF: ['DFC', 'DFC', 'LD', 'LI'], MID: ['MC', 'MCD', 'MCO', 'MD', 'MI'], ATT: ['DC', 'ED', 'EI'] };
 
   C.endSeason = function (s) {
+    C.simulateUntil(s);
     if (!C.seasonFinished(s)) throw new Error('La temporada aún no ha terminado.');
-    advanceOtherLeagues(s, 1);
     const rng = U.rng(s.seed + ':end:' + s.season.year);
     const year = s.season.year;
     const userClub = C.userClub(s);
@@ -433,6 +612,11 @@
       champions[L.id] = s.clubs[tables[L.id][0].clubId].name;
     });
     const myRow = tables[userL.id].find((r) => r.clubId === s.clubId);
+    const prevTables = {};
+    Object.keys(tables).forEach((id) => { prevTables[id] = tables[id].map((r) => r.clubId); });
+    const cupWinners = {};
+    MCM.comps.all(s).forEach((c) => { if (c.type === 'cup' && c.winner) cupWinners[c.nat] = c.winner; });
+    const compRuns = C.compRuns(s, s.clubId);
     const scorers = C.topScorers(s, userL.id, 3).map((p) => ({ name: p.name, club: s.clubs[p.clubId].name, goals: p.stats.goals }));
     const mySquad = C.squad(s, s.clubId);
     const myTop = mySquad.slice().sort((a, b) => b.stats.goals - a.stats.goals)[0];
@@ -467,10 +651,13 @@
       champion: champions[userL.id],
       topScorer: myTop && myTop.stats.goals ? { name: myTop.name, goals: myTop.stats.goals } : null,
       movement: myMove ? (myMove.type === 'up' ? 'Ascenso a ' + s.leagues[myMove.to].name : 'Descenso a ' + s.leagues[myMove.to].name) : null,
+      comps: compRuns,
     });
+    MCM.comps.all(s).forEach((c) => { if (c.winner) champions[c.id] = s.clubs[c.winner].name; });
     s.archive.unshift({
       season: s.season.label,
       champions,
+      compNames: Object.fromEntries(MCM.comps.all(s).map((c) => [c.id, c.name])),
       table: tables[userL.id].map((r) => [s.clubs[r.clubId].name, r.pts, r.gd]),
       leagueName: userL.name,
       scorers,
@@ -487,9 +674,11 @@
     const retired = [];
     const expiredUser = [];
     MCM.dev.beforeAnnualDevelopment(s);
+    const clubGames = {};
+    C.fixtures(s).forEach((f) => { if (f.played) { clubGames[f.home] = (clubGames[f.home] || 0) + 1; clubGames[f.away] = (clubGames[f.away] || 0) + 1; } });
     Object.values(s.players).forEach((p) => {
       const club = p.clubId ? s.clubs[p.clubId] : null;
-      const total = club ? s.leagues[club.leagueId].totalMd * 90 : 1;
+      const total = club ? Math.max(1, clubGames[club.id] || 30) * 90 : 1;
       const share = p.academy ? 0.45 : club ? p.stats.min / Math.max(1, total) : 0.15;
       const before = p.ovr;
       PL.developSeason(p, rng, share);
@@ -544,7 +733,7 @@
         }
       });
       // Completar hasta un tamaño mínimo de plantilla
-      const target = s.leagues[club.leagueId].tier === 1 ? 23 : 22;
+      const target = !club.leagueId ? 20 : s.leagues[club.leagueId].tier === 1 ? 23 : 22;
       while (club.squad.length < target) {
         let signed = null;
         if (club.id !== s.clubId) {
@@ -579,8 +768,8 @@
     // Presupuesto: ingresos según posición y categoría
     Object.values(s.clubs).forEach((club) => {
       if (club.id === s.clubId) return;
-      const L = s.leagues[club.leagueId];
-      club.budget = Math.max(club.budget, MCM.generator.transferBudget(club.rep, L.wealth) * 0.6) + Math.round(MCM.generator.transferBudget(club.rep, L.wealth) * 0.4 / 1e5) * 1e5;
+      const wealth = club.leagueId ? s.leagues[club.leagueId].wealth : club.wealth;
+      club.budget = Math.max(club.budget, MCM.generator.transferBudget(club.rep, wealth) * 0.6) + Math.round(MCM.generator.transferBudget(club.rep, wealth) * 0.4 / 1e5) * 1e5;
     });
 
     // Noticias de cierre
@@ -600,7 +789,7 @@
     s.season = { year: year + 1, label: C.seasonLabel(year + 1), finished: false };
     s._tr = {};
     s._leader = null;
-    setupSeason(s);
+    setupSeason(s, prevTables, cupWinners);
     const club = C.userClub(s);
     C.news(s, 'board', 'Objetivo ' + s.season.label, 'La directiva fija el objetivo: ' + club.objective.text.toLowerCase() + '.');
     s.updatedAt = new Date().toISOString();
@@ -609,6 +798,14 @@
 
   /** Actualiza partidas guardadas con versiones anteriores sin perder nada. */
   C.migrate = function (s) {
+    if (!s.comps) {
+      // Partidas anteriores al calendario por fechas: la liga sigue como estaba y las copas y Europa empiezan la próxima temporada.
+      s.comps = {};
+      Object.values(s.leagues).forEach((L) => L.fixtures.forEach((f) => { f.comp = L.id; f.round = f.round || 'Jornada ' + f.md; }));
+      const played = C.fixtures(s).filter((f) => f.played).map((f) => f.date).sort();
+      s.date = played.length ? played[played.length - 1] : s.season.year + '-08-01';
+      s.week = Math.max(0, Math.floor((new Date(s.date + 'T12:00:00Z') - new Date(MCM.comps.seasonStart(s.season.year) + 'T12:00:00Z')) / 604800000));
+    }
     MCM.market.init(s);
     if (MCM.dev) MCM.dev.init(s);
     Object.values(s.players).forEach((p) => {

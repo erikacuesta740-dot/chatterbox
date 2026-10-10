@@ -66,192 +66,322 @@
   }
 
   /*
-   * side = { club, slots:[pos], xi:[player], bench:[player], tactics }
-   * Devuelve resultado detallado; NO modifica el estado de los jugadores.
+   * Motor con estado: permite jugar por tramos (en directo), hacer cambios y ajustar la táctica en el descanso.
+   * side = { club, slots:[pos], xi:[player], bench:[player], tactics, takers? }
+   * opts = { knockout: bool, prior: [golesIdaLocal, golesIdaVisitante] (del punto de vista de este partido), neutral: bool }
+   * No modifica el estado de los jugadores: devuelve un resultado que aplica la carrera.
    */
-  M.simulate = function (home, away, rng) {
+  const SEG = 18;
+  M.SEG = SEG;
+
+  M.create = function (home, away, rng, opts) {
+    opts = opts || {};
     const sides = [home, away];
-    const st = sides.map(M.strength);
-    // Ventaja de jugar en casa
-    st[0].attack *= 1.035;
-    st[0].control *= 1.03;
-    // Día bueno o malo (azar acotado)
-    st.forEach((s) => {
-      const day = U.clamp(rng.normal(1, 0.035), 0.92, 1.08);
-      s.attack *= day; s.defense *= (1 + (day - 1) * 0.6); s.control *= day;
+    const day = sides.map(() => U.clamp(rng.normal(1, 0.035), 0.92, 1.08));
+    const st = {
+      sides, rng, opts, day,
+      on: sides.map((s) => s.slots.map((pos, i) => (s.xi[i] ? { p: s.xi[i], pos, minIn: 0 } : null)).filter(Boolean)),
+      bench: sides.map((s) => (s.bench || []).slice()),
+      tactics: sides.map((s) => Object.assign({}, s.tactics || MCM.lineup.defaultTactics())),
+      minutes: {}, goalsBy: {}, assistsBy: {}, cardsBy: {}, subsUsed: [0, 0], reds: [0, 0], yellows: [0, 0],
+      shots: [0, 0], sot: [0, 0], xg: [0, 0], score: [0, 0], events: [], injuries: [], ownersOff: new Set(),
+      seg: 0, possSum: [0, 0], possN: 0, et: false, pens: null, done: false,
+    };
+    recompute(st);
+    return st;
+  };
+
+  // Fuerza actual a partir de quién está en el campo (cambios, lesiones y expulsiones incluidas).
+  function recompute(st) {
+    st.str = [0, 1].map((i) => {
+      const lines = { GK: [], DEF: [], MID: [], ATT: [] };
+      st.on[i].forEach((e) => { lines[PL.POSITIONS[e.pos].line].push(e.p.ovr * PL.fit(e.p, e.pos) * M.condition(e.p)); });
+      const avg = (a, fb) => (a.length ? U.avg(a) : fb);
+      const MID = avg(lines.MID, 50);
+      const GK = avg(lines.GK, 30);
+      const DEF = avg(lines.DEF, MID * 0.9);
+      const ATT = avg(lines.ATT, MID * 0.95);
+      const t = st.tactics[i];
+      const men = TACTIC.mentality[t.mentality] || TACTIC.mentality.bal;
+      const pr = TACTIC.pressing[t.pressing] || TACTIC.pressing.mid;
+      const te = TACTIC.tempo[t.tempo] || TACTIC.tempo.normal;
+      const d = st.day[i] * (st.sides[i].takers && st.sides[i].takers.captain && st.on[i].some((e) => e.p.id === st.sides[i].takers.captain) ? 1.006 : 1);
+      const homeF = i === 0 && !st.opts.neutral;
+      return {
+        attack: (0.55 * ATT + 0.35 * MID + 0.1 * DEF) * men.att * (homeF ? 1.035 : 1) * d,
+        defense: (0.5 * DEF + 0.25 * MID + 0.25 * GK) * men.def * pr.def * (1 + (d - 1) * 0.6),
+        control: (0.7 * MID + 0.15 * DEF + 0.15 * ATT) * pr.ctrl * te.ctrl * (homeF ? 1.03 : 1) * d,
+        volume: te.vol, tire: pr.tire, cards: pr.cards,
+      };
     });
+    const s0 = st.str[0];
+    const s1 = st.str[1];
+    const possH = U.clamp(50 + (s0.control - s1.control) * 1.6, 28, 72);
+    st.poss = [possH, 100 - possH];
+    const volume = 11 * (s0.volume + s1.volume) / 2;
+    const ratio = [s0.attack / s1.defense, s1.attack / s0.defense];
+    st.expShots = [0, 1].map((i) => Math.min(30, volume * Math.pow(st.poss[i] / 50, 0.7) * Math.pow(ratio[i], 1.8)));
+    st.xgShot = [0, 1].map((i) => U.clamp(0.095 * Math.pow(ratio[i], 1.4), 0.035, 0.26));
+  }
+  M.recompute = recompute;
 
-    const possH = U.clamp(50 + (st[0].control - st[1].control) * 1.6, 28, 72);
-    const poss = [possH, 100 - possH];
-    const volume = 11.5 * (st[0].volume + st[1].volume) / 2;
-    const ratio = [st[0].attack / st[1].defense, st[1].attack / st[0].defense];
-    const expShots = [0, 1].map((i) => Math.min(30, volume * Math.pow(poss[i] / 50, 0.7) * Math.pow(ratio[i], 1.8)));
-    const xgShot = [0, 1].map((i) => U.clamp(0.095 * Math.pow(ratio[i], 1.4), 0.035, 0.26));
-
-    // Estado en el campo
-    const on = sides.map((s) => s.slots.map((pos, i) => (s.xi[i] ? { p: s.xi[i], pos, minIn: 0 } : null)).filter(Boolean));
-    const bench = sides.map((s) => (s.bench || []).slice());
-    const minutes = {};
-    const goalsBy = {};
-    const assistsBy = {};
-    const cardsBy = {};
-    const subsUsed = [0, 0];
-    const reds = [0, 0];
-    const yellows = [0, 0];
-    const shots = [0, 0];
-    const sot = [0, 0];
-    const xg = [0, 0];
-    const score = [0, 0];
-    const events = [];
-    const injuries = [];
-    const ownersOff = new Set();
-
-    function leave(sideIdx, entry, minute) {
-      minutes[entry.p.id] = (minutes[entry.p.id] || 0) + (minute - entry.minIn);
-      on[sideIdx] = on[sideIdx].filter((e) => e !== entry);
-      ownersOff.add(entry.p.id);
-    }
-    function substitute(sideIdx, entry, minute, reason) {
-      if (subsUsed[sideIdx] >= 5) { leave(sideIdx, entry, minute); return null; }
-      const cands = bench[sideIdx].filter((b) => !ownersOff.has(b.id));
-      if (!cands.length) { leave(sideIdx, entry, minute); return null; }
+  function leave(st, sideIdx, entry, minute) {
+    st.minutes[entry.p.id] = (st.minutes[entry.p.id] || 0) + (minute - entry.minIn);
+    st.on[sideIdx] = st.on[sideIdx].filter((e) => e !== entry);
+    st.ownersOff.add(entry.p.id);
+  }
+  function maxSubs(st) { return st.et ? 6 : 5; }
+  function substitute(st, sideIdx, entry, minute, reason, inP) {
+    if (st.subsUsed[sideIdx] >= maxSubs(st)) { leave(st, sideIdx, entry, minute); return null; }
+    if (!inP) {
+      const cands = st.bench[sideIdx].filter((b) => !st.ownersOff.has(b.id));
+      if (!cands.length) { leave(st, sideIdx, entry, minute); return null; }
       cands.sort((a, b) => MCM.lineup.slotScore(b, entry.pos) - MCM.lineup.slotScore(a, entry.pos));
-      const inP = cands[0];
-      bench[sideIdx] = bench[sideIdx].filter((b) => b !== inP);
-      leave(sideIdx, entry, minute);
-      on[sideIdx].push({ p: inP, pos: entry.pos, minIn: minute });
-      subsUsed[sideIdx]++;
-      events.push({ min: minute, type: 'sub', side: sideIdx, pid: inP.id, outId: entry.p.id, reason });
-      return inP;
+      inP = cands[0];
     }
+    st.bench[sideIdx] = st.bench[sideIdx].filter((b) => b !== inP);
+    leave(st, sideIdx, entry, minute);
+    st.on[sideIdx].push({ p: inP, pos: entry.pos, minIn: minute });
+    st.subsUsed[sideIdx]++;
+    st.events.push({ min: minute, type: 'sub', side: sideIdx, pid: inP.id, outId: entry.p.id, reason });
+    recompute(st);
+    return inP;
+  }
 
-    const SEG = 18;
-    for (let seg = 0; seg < SEG; seg++) {
-      const m0 = seg * 5;
-      for (let s = 0; s < 2; s++) {
-        const o = 1 - s;
-        if (!on[s].length) continue;
-        const redFactor = Math.pow(0.78, reds[s]) * Math.pow(1.18, reds[o]);
-        // Ocasiones
-        const n = rng.poisson((expShots[s] / SEG) * redFactor);
-        for (let k = 0; k < n; k++) {
-          const minute = m0 + rng.int(1, 5) + (seg === SEG - 1 && rng.chance(0.3) ? rng.int(1, 4) : 0);
-          const shooter = rng.weighted(on[s], (e) => shooterWeight(e.p, e.pos));
-          if (!shooter) continue;
-          shots[s]++;
-          const q = xgShot[s] * U.clamp((shooter.p.attrs.sho || 40) / 72, 0.55, 1.35) * rng.range(0.55, 1.45);
-          xg[s] += q;
-          if (rng.chance(q)) {
-            score[s]++;
-            sot[s]++;
-            goalsBy[shooter.p.id] = (goalsBy[shooter.p.id] || 0) + 1;
-            let aid = null;
-            if (rng.chance(0.74)) {
-              const others = on[s].filter((e) => e !== shooter);
-              const a = others.length ? rng.weighted(others, (e) => assistWeight(e.p, e.pos)) : null;
-              if (a) { aid = a.p.id; assistsBy[aid] = (assistsBy[aid] || 0) + 1; }
-            }
-            events.push({ min: minute, type: 'goal', side: s, pid: shooter.p.id, aid });
-          } else if (rng.chance(0.3)) {
-            sot[s]++;
-          }
+  function scoreGoal(st, s, shooter, minute, pen) {
+    st.score[s]++;
+    st.sot[s]++;
+    st.goalsBy[shooter.p.id] = (st.goalsBy[shooter.p.id] || 0) + 1;
+    let aid = null;
+    if (!pen && st.rng.chance(0.74)) {
+      const others = st.on[s].filter((e) => e !== shooter);
+      const a = others.length ? st.rng.weighted(others, (e) => assistWeight(e.p, e.pos)) : null;
+      if (a) { aid = a.p.id; st.assistsBy[aid] = (st.assistsBy[aid] || 0) + 1; }
+    }
+    st.events.push({ min: minute, type: 'goal', side: s, pid: shooter.p.id, aid, pen: !!pen });
+  }
+
+  function penaltyTaker(st, s) {
+    const side = st.sides[s];
+    const want = side.takers && side.takers.pen;
+    const named = want && st.on[s].find((e) => e.p.id === want);
+    return named || st.on[s].slice().sort((a, b) => (b.p.attrs.sho || 0) - (a.p.attrs.sho || 0))[0];
+  }
+  function gkOf(st, s) { return st.on[s].find((e) => e.pos === 'POR') || null; }
+  function penProb(taker, gk) {
+    const sho = taker.p.attrs.sho || 50;
+    const ref = gk ? (gk.p.attrs.ref || gk.p.attrs.div || 60) : 40;
+    return U.clamp(0.76 + (sho - 75) / 220 - (ref - 75) / 300, 0.55, 0.92);
+  }
+
+  function playSeg(st, seg, m0, rate) {
+    const rng = st.rng;
+    const last = seg === SEG - 1 || seg === SEG + 5;
+    for (let s = 0; s < 2; s++) {
+      const o = 1 - s;
+      if (!st.on[s].length) continue;
+      const str = st.str[s];
+      const redFactor = Math.pow(0.78, st.reds[s]) * Math.pow(1.18, st.reds[o]);
+      // Ocasiones
+      const n = rng.poisson((st.expShots[s] / SEG) * redFactor * rate);
+      for (let k = 0; k < n; k++) {
+        const minute = m0 + rng.int(1, 5) + (last && rng.chance(0.3) ? rng.int(1, 4) : 0);
+        const shooter = rng.weighted(st.on[s], (e) => shooterWeight(e.p, e.pos));
+        if (!shooter) continue;
+        st.shots[s]++;
+        const q = st.xgShot[s] * U.clamp((shooter.p.attrs.sho || 40) / 72, 0.55, 1.35) * rng.range(0.55, 1.45);
+        st.xg[s] += q;
+        if (rng.chance(q)) scoreGoal(st, s, shooter, minute, false);
+        else if (rng.chance(0.3)) st.sot[s]++;
+      }
+      // Penaltis
+      if (rng.chance(0.0085 * rate * Math.min(1.4, st.expShots[s] / 11))) {
+        const minute = m0 + rng.int(1, 5);
+        const taker = penaltyTaker(st, s);
+        if (taker) {
+          st.shots[s]++;
+          st.xg[s] += 0.76;
+          if (rng.chance(penProb(taker, gkOf(st, o)))) scoreGoal(st, s, taker, minute, true);
+          else st.events.push({ min: minute, type: 'penmiss', side: s, pid: taker.p.id });
         }
-        // Tarjetas
-        const yRate = (1.85 * st[s].cards) / SEG;
-        const ny = rng.poisson(yRate);
-        for (let k = 0; k < ny; k++) {
-          const e = rng.weighted(on[s], (x) => cardWeight(x.p, x.pos));
-          if (!e) continue;
+      }
+      // Tarjetas
+      const ny = rng.poisson((1.85 * str.cards * rate) / SEG);
+      for (let k = 0; k < ny; k++) {
+        const e = rng.weighted(st.on[s], (x) => cardWeight(x.p, x.pos));
+        if (!e) continue;
+        const minute = m0 + rng.int(1, 5);
+        const prev = st.cardsBy[e.p.id] || 0;
+        if (prev === 1) {
+          st.cardsBy[e.p.id] = 2; st.yellows[s]++; st.reds[s]++;
+          st.events.push({ min: minute, type: 'red', side: s, pid: e.p.id, second: true });
+          leave(st, s, e, minute); recompute(st);
+        } else {
+          st.cardsBy[e.p.id] = 1; st.yellows[s]++;
+          st.events.push({ min: minute, type: 'yellow', side: s, pid: e.p.id });
+        }
+      }
+      if (rng.chance((0.032 / SEG) * str.cards * rate)) {
+        const e = rng.weighted(st.on[s], (x) => cardWeight(x.p, x.pos));
+        if (e) {
           const minute = m0 + rng.int(1, 5);
-          const prev = cardsBy[e.p.id] || 0;
-          if (prev === 1) {
-            cardsBy[e.p.id] = 2;
-            yellows[s]++;
-            reds[s]++;
-            events.push({ min: minute, type: 'red', side: s, pid: e.p.id, second: true });
-            leave(s, e, minute);
-          } else {
-            cardsBy[e.p.id] = 1;
-            yellows[s]++;
-            events.push({ min: minute, type: 'yellow', side: s, pid: e.p.id });
-          }
+          st.cardsBy[e.p.id] = 3; st.reds[s]++;
+          st.events.push({ min: minute, type: 'red', side: s, pid: e.p.id, second: false });
+          leave(st, s, e, minute); recompute(st);
         }
-        if (rng.chance(0.032 / SEG * st[s].cards)) {
-          const e = rng.weighted(on[s], (x) => cardWeight(x.p, x.pos));
-          if (e) {
-            const minute = m0 + rng.int(1, 5);
-            cardsBy[e.p.id] = 3;
-            reds[s]++;
-            events.push({ min: minute, type: 'red', side: s, pid: e.p.id, second: false });
-            leave(s, e, minute);
-          }
+      }
+      // Lesiones
+      st.on[s].slice().forEach((e) => {
+        const risk = (0.0105 / SEG) * rate * (1 + Math.max(0, 75 - e.p.fitness) / 25) * (e.p.age >= 31 ? 1.25 : 1);
+        if (rng.chance(risk)) {
+          const minute = m0 + rng.int(1, 5);
+          const sev = rng.next();
+          const weeks = sev < 0.55 ? rng.int(1, 2) : sev < 0.85 ? rng.int(3, 5) : sev < 0.97 ? rng.int(6, 10) : rng.int(12, 26);
+          st.injuries.push({ pid: e.p.id, side: s, weeks, minute });
+          st.events.push({ min: minute, type: 'injury', side: s, pid: e.p.id, weeks });
+          substitute(st, s, e, minute, 'injury');
         }
-        // Lesiones
-        on[s].slice().forEach((e) => {
-          const risk = 0.0105 / SEG * (1 + Math.max(0, 75 - e.p.fitness) / 25) * (e.p.age >= 31 ? 1.25 : 1);
-          if (rng.chance(risk)) {
-            const minute = m0 + rng.int(1, 5);
-            const sev = rng.next();
-            const weeks = sev < 0.55 ? rng.int(1, 2) : sev < 0.85 ? rng.int(3, 5) : sev < 0.97 ? rng.int(6, 10) : rng.int(12, 26);
-            injuries.push({ pid: e.p.id, side: s, weeks, minute });
-            events.push({ min: minute, type: 'injury', side: s, pid: e.p.id, weeks });
-            substitute(s, e, minute, 'injury');
-          }
-        });
-        // Cambios tácticos por cansancio (minutos 60-80)
-        if (seg >= 12 && seg <= 16 && subsUsed[s] < 5) {
-          const tiredness = (e) => e.p.fitness - (m0 - e.minIn) * 0.2 * st[s].tire;
-          const cand = on[s].filter((e) => e.minIn === 0 && e.pos !== 'POR').sort((a, b) => tiredness(a) - tiredness(b))[0];
-          if (cand && (tiredness(cand) < 62 || (seg >= 14 && rng.chance(0.45)))) {
-            const best = bench[s].filter((b) => !ownersOff.has(b.id) && b.pos !== 'POR')
-              .sort((a, b) => MCM.lineup.slotScore(b, cand.pos) - MCM.lineup.slotScore(a, cand.pos))[0];
-            if (best && MCM.lineup.slotScore(best, cand.pos) >= MCM.lineup.slotScore(cand.p, cand.pos) * 0.86) {
-              substitute(s, cand, m0 + rng.int(1, 5), 'tactical');
-            }
-          }
+      });
+      // Cambios por cansancio (entre el 60 y el 80, y en la prórroga)
+      const autoOk = !(st.sides[s].manual && st.sides[s].manual.noAutoSubs);
+      if (autoOk && ((seg >= 12 && seg <= 16) || seg >= SEG + 1) && st.subsUsed[s] < maxSubs(st)) {
+        const tiredness = (e) => e.p.fitness - (m0 - e.minIn) * 0.2 * str.tire;
+        const cand = st.on[s].filter((e) => e.minIn === 0 && e.pos !== 'POR').sort((a, b) => tiredness(a) - tiredness(b))[0];
+        if (cand && (tiredness(cand) < 62 || (seg >= 14 && rng.chance(0.45)))) {
+          const best = st.bench[s].filter((b) => !st.ownersOff.has(b.id) && b.pos !== 'POR')
+            .sort((a, b) => MCM.lineup.slotScore(b, cand.pos) - MCM.lineup.slotScore(a, cand.pos))[0];
+          if (best && MCM.lineup.slotScore(best, cand.pos) >= MCM.lineup.slotScore(cand.p, cand.pos) * 0.86) substitute(st, s, cand, m0 + rng.int(1, 5), 'tactical');
         }
       }
     }
-    on.forEach((list) => list.forEach((e) => { minutes[e.p.id] = (minutes[e.p.id] || 0) + (90 - e.minIn); }));
-    events.sort((a, b) => a.min - b.min);
+    st.possSum[0] += st.poss[0]; st.possN++;
+  }
 
-    // Valoraciones
+  /* Juega hasta el tramo indicado (9 = descanso, 18 = final de los 90). */
+  M.playUntil = function (st, segEnd) {
+    while (st.seg < Math.min(segEnd, SEG)) { playSeg(st, st.seg, st.seg * 5, 1); st.seg++; }
+    st.events.sort((a, b) => a.min - b.min);
+    return st;
+  };
+  M.minute = (st) => Math.min(st.seg, SEG) * 5 + (st.et ? 30 : 0);
+
+  /* Cambio manual: sale outId y entra inId (del banquillo). */
+  M.manualSub = function (st, sideIdx, outId, inId) {
+    const entry = st.on[sideIdx].find((e) => e.p.id === outId);
+    const inP = st.bench[sideIdx].find((b) => b.id === inId && !st.ownersOff.has(b.id));
+    if (!entry || !inP) return 'Cambio no válido.';
+    if (st.subsUsed[sideIdx] >= maxSubs(st)) return 'Ya has hecho los ' + maxSubs(st) + ' cambios permitidos.';
+    substitute(st, sideIdx, entry, M.minute(st), 'manual', inP);
+    return null;
+  };
+  M.setTactics = function (st, sideIdx, tactics) {
+    Object.assign(st.tactics[sideIdx], tactics);
+    recompute(st);
+  };
+
+  function knockoutTied(st) {
+    const prior = st.opts.prior || [0, 0];
+    return st.score[0] + prior[0] === st.score[1] + prior[1];
+  }
+
+  function shootout(st) {
+    const rng = st.rng;
+    const takers = [0, 1].map((s) => st.on[s].slice().sort((a, b) => (b.p.attrs.sho || 0) - (a.p.attrs.sho || 0)));
+    const gk = [gkOf(st, 0), gkOf(st, 1)];
+    const goals = [0, 0];
+    const kicks = [[], []];
+    for (let r = 0; r < 30; r++) {
+      for (let s = 0; s < 2; s++) {
+        const list = takers[s];
+        if (!list.length) { kicks[s].push(false); continue; }
+        const t = list[r % list.length];
+        const ok = rng.chance(penProb(t, gk[1 - s]) - 0.04);
+        if (ok) goals[s]++;
+        kicks[s].push({ pid: t.p.id, ok });
+      }
+      const n = r + 1;
+      if (n <= 5) {
+        const left = 5 - n;
+        if (goals[0] > goals[1] + left || goals[1] > goals[0] + left) break;
+      } else if (goals[0] !== goals[1]) break;
+    }
+    st.pens = goals;
+    st.penKicks = kicks;
+    st.events.push({ min: 121, type: 'shootout', side: goals[0] > goals[1] ? 0 : 1, score: goals.slice() });
+  }
+
+  /* Termina el partido (prórroga y penaltis si es eliminatoria y hay empate) y devuelve el resultado. */
+  M.finish = function (st) {
+    M.playUntil(st, SEG);
+    if (st.opts.knockout && knockoutTied(st)) {
+      st.et = true;
+      for (let k = 0; k < 6; k++) playSeg(st, SEG + k, 90 + k * 5, 0.85);
+      st.events.sort((a, b) => a.min - b.min);
+      if (knockoutTied(st)) shootout(st);
+    }
+    const end = st.et ? 120 : 90;
+    st.on.forEach((list) => list.forEach((e) => { st.minutes[e.p.id] = (st.minutes[e.p.id] || 0) + (end - e.minIn); }));
+    st.on.forEach((list) => list.forEach((e) => { e.minIn = end; }));
+    st.done = true;
+    return result(st);
+  };
+
+  function result(st) {
+    const rng = st.rng;
     const ratings = {};
+    const sides = st.sides;
     const avgOvr = sides.map((s) => U.avg(s.xi.filter(Boolean).map((p) => p.ovr)));
+    const posOf = {};
     sides.forEach((s, si) => {
-      const res = score[si] > score[1 - si] ? 1 : score[si] < score[1 - si] ? -1 : 0;
-      const conceded = score[1 - si];
-      const all = s.xi.filter(Boolean).concat(s.bench || []);
-      all.forEach((p) => {
-        const mins = minutes[p.id];
+      s.slots.forEach((pos, i) => { if (s.xi[i]) posOf[s.xi[i].id] = pos; });
+      st.events.filter((e) => e.type === 'sub' && e.side === si).forEach((e) => { posOf[e.pid] = posOf[e.outId] || null; });
+    });
+    sides.forEach((s, si) => {
+      const res = st.score[si] > st.score[1 - si] ? 1 : st.score[si] < st.score[1 - si] ? -1 : 0;
+      const conceded = st.score[1 - si];
+      s.xi.filter(Boolean).concat(s.bench || []).forEach((p) => {
+        const mins = st.minutes[p.id];
         if (!mins) return;
-        const pos = s.slots[s.xi.indexOf(p)] || p.pos;
+        const pos = posOf[p.id] || p.pos;
         const line = PL.POSITIONS[pos] ? PL.POSITIONS[pos].line : 'MID';
         let r = 6.3 + res * 0.35 + (p.ovr - avgOvr[si]) * 0.03 + rng.normal(0, 0.38);
-        r += (goalsBy[p.id] || 0) * 1.0 + (assistsBy[p.id] || 0) * 0.6;
-        if (line === 'GK') r += (sot[1 - si] - conceded) * 0.18 - conceded * 0.35 + (conceded === 0 ? 0.6 : 0);
+        r += (st.goalsBy[p.id] || 0) * 1.0 + (st.assistsBy[p.id] || 0) * 0.6;
+        if (line === 'GK') r += (st.sot[1 - si] - conceded) * 0.18 - conceded * 0.35 + (conceded === 0 ? 0.6 : 0);
         if (line === 'DEF') r += conceded === 0 ? 0.5 : -conceded * 0.15;
-        const c = cardsBy[p.id] || 0;
+        const c = st.cardsBy[p.id] || 0;
         if (c === 1) r -= 0.3;
         if (c >= 2) r -= 1.5;
+        if (st.events.some((e) => e.type === 'penmiss' && e.pid === p.id)) r -= 0.6;
         if (mins < 30) r = 6 + (r - 6) * 0.5;
         ratings[p.id] = Math.round(U.clamp(r, 3, 10) * 10) / 10;
       });
     });
     let motm = null;
     Object.keys(ratings).forEach((id) => { if (!motm || ratings[id] > ratings[motm]) motm = id; });
-
+    const possH = st.possN ? Math.round(st.possSum[0] / st.possN) : 50;
+    let winner = null;
+    if (st.opts.knockout) {
+      const prior = st.opts.prior || [0, 0];
+      const a = st.score[0] + prior[0];
+      const b = st.score[1] + prior[1];
+      winner = a > b ? 0 : b > a ? 1 : st.pens ? (st.pens[0] > st.pens[1] ? 0 : 1) : null;
+    }
     return {
-      hg: score[0], ag: score[1], events, injuries, ratings, minutes, motm,
-      cards: cardsBy, goalsBy, assistsBy,
+      hg: st.score[0], ag: st.score[1], events: st.events, injuries: st.injuries, ratings, minutes: st.minutes, motm,
+      cards: st.cardsBy, goalsBy: st.goalsBy, assistsBy: st.assistsBy, et: st.et, pens: st.pens, penKicks: st.penKicks || null, winner,
       stats: {
-        poss: [Math.round(poss[0]), 100 - Math.round(poss[0])], shots, sot,
-        xg: xg.map((x) => Math.round(x * 100) / 100), yellows, reds,
-        corners: [rng.poisson(2 + shots[0] * 0.28), rng.poisson(2 + shots[1] * 0.28)],
-        fouls: [rng.poisson(11 * st[0].cards), rng.poisson(11 * st[1].cards)],
+        poss: [possH, 100 - possH], shots: st.shots, sot: st.sot,
+        xg: st.xg.map((x) => Math.round(x * 100) / 100), yellows: st.yellows, reds: st.reds,
+        corners: [rng.poisson(2 + st.shots[0] * 0.28), rng.poisson(2 + st.shots[1] * 0.28)],
+        fouls: [rng.poisson(11 * st.str[0].cards), rng.poisson(11 * st.str[1].cards)],
       },
-      strength: st.map((s) => ({ attack: Math.round(s.attack), defense: Math.round(s.defense), control: Math.round(s.control) })),
     };
+  }
+
+  /* Simulación directa (sin pausas). */
+  M.simulate = function (home, away, rng, opts) {
+    const st = M.create(home, away, rng, opts);
+    return M.finish(st);
   };
 
   /* Crónica breve a partir de lo que ha ocurrido realmente. */
@@ -261,7 +391,8 @@
     const winner = diff > 0 ? homeName : awayName;
     const loser = diff > 0 ? awayName : homeName;
     const score = Math.max(res.hg, res.ag) + '-' + Math.min(res.hg, res.ag);
-    if (diff === 0) parts.push(res.hg === 0 ? 'Empate sin goles entre ' + homeName + ' y ' + awayName + '.' : 'Reparto de puntos (' + res.hg + '-' + res.ag + ') entre ' + homeName + ' y ' + awayName + '.');
+    if (diff === 0 && res.winner != null) parts.push((res.pens ? 'Tras ' + res.hg + '-' + res.ag + ', se decidió en los penaltis (' + res.pens[0] + '-' + res.pens[1] + '): ' : 'Empate ' + res.hg + '-' + res.ag + ' que da el pase a ') + (res.winner === 0 ? homeName : awayName) + (res.pens ? ' pasa de ronda.' : '.'));
+    else if (diff === 0) parts.push(res.hg === 0 ? 'Empate sin goles entre ' + homeName + ' y ' + awayName + '.' : 'Reparto de puntos (' + res.hg + '-' + res.ag + ') entre ' + homeName + ' y ' + awayName + '.');
     else if (Math.abs(diff) >= 3) parts.push(winner + ' goleó ' + score + ' a ' + loser + '.');
     else parts.push(rng.pick(['Victoria de ', 'Triunfo de ']) + winner + ' por ' + score + ' ante ' + loser + '.');
 
@@ -276,6 +407,9 @@
       const dom = p[0] >= 60 ? homeName : awayName;
       parts.push(dom + ' dominó la posesión (' + Math.max(p[0], p[1]) + '%).');
     }
+    if (res.et && !res.pens && diff !== 0) parts.push('Hizo falta la prórroga.');
+    const miss = res.events.filter((e) => e.type === 'penmiss');
+    if (miss.length) parts.push(miss.map((e) => nameOf(e.pid)).join(' y ') + ' falló un penalti.');
     const reds = res.events.filter((e) => e.type === 'red');
     if (reds.length) parts.push('Expulsión de ' + reds.map((e) => nameOf(e.pid)).join(' y ') + '.');
     res.injuries.forEach((inj) => parts.push(nameOf(inj.pid) + ' se retiró lesionado (' + inj.weeks + ' sem.).'));

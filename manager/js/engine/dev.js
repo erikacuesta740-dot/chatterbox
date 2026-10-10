@@ -82,11 +82,10 @@
 
   // Progresión mensual (cada 4 jornadas): pequeños cambios visibles durante la temporada.
   function monthly(s, rng) {
-    const L = C().userLeague(s);
-    const weeks = Math.max(1, L.played);
+    const weeks = Math.max(1, s.week || 1);
     Object.values(s.players).forEach((p) => {
       if (!p.clubId) return;
-      const share = p.academy ? 0.45 : U.clamp(p.stats.min / (weeks * 90), 0, 1);
+      const share = p.academy ? 0.45 : U.clamp(p.stats.min / (weeks * 1.15 * 90), 0, 1);
       const gap = p.pot - p.ovr;
       let delta = 0;
       if (p.age <= 24 && gap > 0 && rng.chance(Math.min(0.5, gap * 0.025 * (0.4 + share)))) delta = 1;
@@ -98,7 +97,7 @@
       p.value = PL.marketValue(p);
       if (p.clubId === s.clubId) {
         p.ovrHist = p.ovrHist || [];
-        p.ovrHist.push({ s: s.season.label, md: L.played, ovr: p.ovr });
+        p.ovrHist.push({ s: s.season.label, md: s.week || 0, date: s.date, ovr: p.ovr });
         if (p.ovrHist.length > 16) p.ovrHist.shift();
         if (delta > 0 && p.age <= 21 && p.ovr % 3 === 0) C().news(s, 'youth', p.name + ' sigue creciendo', p.name + ' (' + p.age + ' años) sube a ' + p.ovr + ' de media.', { pid: p.id });
       }
@@ -107,12 +106,12 @@
 
   // Moral según minutos esperados por su rol; peticiones de salida.
   function moraleByRole(s) {
-    const L = C().userLeague(s);
-    if (L.played < 4) return;
+    const games = C().gamesPlayed(s, s.clubId);
+    if (games < 4) return;
     C().squad(s, s.clubId).forEach((p) => {
       if (p.loan) return;
       const role = MCM.market.role(s, p);
-      const share = p.stats.min / (L.played * 90);
+      const share = p.stats.min / (games * 90);
       const exp = D.EXPECTED_SHARE[role] || 0.1;
       if (share + 0.05 < exp) p.morale = U.clamp(p.morale - (role === 'clave' ? 2.5 : 1.5), 5, 100);
       else if (share > exp) p.morale = U.clamp(p.morale + 0.8, 5, 100);
@@ -135,7 +134,7 @@
     const last = me.form[me.form.length - 1];
     const diff = club.objective.target - me.pos;
     let delta = U.clamp(diff * 0.35, -2.5, 2) + (last === 'V' ? 1.2 : last === 'D' ? -1.6 : 0);
-    if (L.played < 5) delta *= 0.4;
+    if (me.p < 5) delta *= 0.4;
     s.dev.confidence = U.clamp(s.dev.confidence + delta, 0, 100);
     const c = s.dev.confidence;
     const key = s.season.label;
@@ -162,9 +161,8 @@
 
   D.weekly = function (s) {
     D.init(s);
-    const L = C().userLeague(s);
-    const rng = U.rng(s.seed + ':dev:' + s.season.label + ':' + L.played);
-    if (L.played % 4 === 0) monthly(s, rng);
+    const rng = U.rng(s.seed + ':dev:' + s.season.label + ':' + (s.week || 0));
+    if ((s.week || 0) % 4 === 0) monthly(s, rng);
     moraleByRole(s);
     board(s);
     rumours(s, rng);

@@ -98,7 +98,7 @@
   }
 
   // ---------- Navegación ----------
-  const TABS = [['hub', 'Inicio', 'home'], ['squad', 'Plantilla', 'squad'], ['calendar', 'Partidos', 'calendar'], ['table', 'Tabla', 'table'], ['menu', 'Menú', 'menu']];
+  const TABS = [['hub', 'Inicio', 'home'], ['squad', 'Plantilla', 'squad'], ['calendar', 'Partidos', 'calendar'], ['table', 'Torneos', 'trophy'], ['menu', 'Menú', 'menu']];
   const TAB_ROOTS = new Set(TABS.map((t) => t[0]));
 
   App.go = function (view, params, opts) {
@@ -234,66 +234,6 @@
     return { title: 'Nueva carrera', sub: 'Paso 2 de 2 · Detalles', html, tabs: false };
   };
 
-  VIEWS.hub = function () {
-    const s = App.s;
-    const club = C.userClub(s);
-    const L = C.userLeague(s);
-    const table = SC.table(L);
-    const me = table.find((r) => r.clubId === s.clubId);
-    const unread = s.news.filter((n) => !n.read).length;
-    let html = '<section class="card"><div class="row">' + UI.crest(club, 54) + '<div class="grow"><h2 class="ellipsis">' + esc(club.name) + '</h2>' +
-      '<div class="small muted">' + esc(L.name) + ' · ' + esc(s.season.label) + ' · ' + esc(s.managerName) + '</div></div>' +
-      '<div style="text-align:right"><div class="scoreboard" style="font-size:2rem">' + me.pos + 'º</div><div class="small muted num">' + me.pts + ' pts</div></div></div>' +
-      '<div class="row wrap"><span class="pill info">Objetivo: ' + esc(club.objective.text) + '</span>' +
-      (me.form.length ? '<span class="row" style="gap:4px">' + me.form.map((r) => '<span class="res ' + r + '">' + r + '</span>').join('') + '</span>' : '') + '</div></section>';
-
-    const md = C.nextMd(s);
-    if (md) {
-      const f = C.userFixture(s, md);
-      if (f) {
-        const home = s.clubs[f.home];
-        const away = s.clubs[f.away];
-        html += '<section class="card hero-match"><div class="section-head"><span class="eyebrow">Jornada ' + md + ' de ' + L.totalMd + '</span><span class="small muted">' + esc(U.dateLabel(f.date)) + '</span></div>' +
-          '<div class="fixture"><div class="team">' + UI.crest(home, 52) + '<span class="nm">' + esc(home.name) + '</span><span class="small muted">Media ' + C.teamRatingCache(s, home.id) + '</span></div>' +
-          (f.played ? '<div class="scoreboard">' + f.hg + '-' + f.ag + '</div>' : '<div class="vs">VS</div>') +
-          '<div class="team">' + UI.crest(away, 52) + '<span class="nm">' + esc(away.name) + '</span><span class="small muted">Media ' + C.teamRatingCache(s, away.id) + '</span></div></div>';
-        if (!f.played) {
-          const warns = LU.warnings(club.lineup || LU.autoPick(C.squad(s, s.clubId), club.tactics.formation), C.squad(s, s.clubId)).filter((w) => w.level !== 'info');
-          if (warns.length && !s.settings.autoLineup) html += '<button class="notice" data-act="nav" data-view="tactics" style="text-align:left">⚠ ' + warns.length + ' aviso' + (warns.length > 1 ? 's' : '') + ' en tu alineación. Toca para revisar.</button>';
-          html += '<div class="btn-row"><button class="btn primary" data-act="sim-match">' + icon('play') + 'Simular partido</button>' +
-            '<button class="btn" data-act="sim-md-ask">Simular jornada</button></div>' +
-            '<button class="btn ghost sm" data-act="nav" data-view="tactics">' + icon('tactics') + (s.settings.autoLineup ? 'Alineación automática · ' : 'Alineación manual · ') + esc(club.tactics.formation) + '</button>';
-        } else {
-          html += '<p class="small">' + esc(f.report ? f.report.summary : '') + '</p><div class="btn-row"><button class="btn" data-act="match" data-id="' + f.id + '" data-league="' + L.id + '">Ver crónica</button>' +
-            '<button class="btn primary" data-act="sim-md">Completar jornada</button></div>';
-        }
-        html += '</section>';
-      }
-    } else {
-      html += '<section class="card hero-match"><span class="eyebrow">Fin de temporada ' + esc(s.season.label) + '</span>' +
-        '<h2>' + icon('trophy').replace('<svg', '<svg width="22" height="22" style="vertical-align:-3px;margin-right:6px"') + esc(s.clubs[table[0].clubId].name) + ', campeón</h2>' +
-        '<p>Has terminado ' + me.pos + 'º con ' + me.pts + ' puntos. Objetivo: ' + esc(club.objective.text.toLowerCase()) + ' — ' + (me.pos <= club.objective.target ? '<b style="color:var(--good)">cumplido</b>' : '<b style="color:var(--bad)">no cumplido</b>') + '.</p>' +
-        '<button class="btn primary block" data-act="end-season-ask">Cerrar temporada y empezar ' + esc(C.seasonLabel(s.season.year + 1)) + '</button></section>';
-    }
-
-    const last = L.fixtures.filter((f) => f.played && f.report && (f.home === s.clubId || f.away === s.clubId)).sort((a, b) => b.md - a.md)[0];
-    if (last && (!md || last.md !== md)) {
-      const r = UI.resultFor(last, s.clubId);
-      html += '<button class="card" data-act="match" data-id="' + last.id + '" data-league="' + L.id + '" style="text-align:left"><span class="eyebrow">Último partido · J' + last.md + '</span>' +
-        '<div class="row"><span class="res ' + r + '">' + r + '</span><span class="grow ellipsis"><b>' + esc(s.clubs[last.home].short) + ' ' + last.hg + '-' + last.ag + ' ' + esc(s.clubs[last.away].short) + '</b></span><span class="small muted">Ver crónica ›</span></div></button>';
-    }
-
-    // Mini clasificación
-    const idx = table.findIndex((r) => r.clubId === s.clubId);
-    const from = U.clamp(idx - 2, 0, Math.max(0, table.length - 5));
-    html += '<section class="card"><div class="section-head"><h3>Clasificación</h3><button class="btn ghost sm" data-act="tab" data-view="table">Completa ›</button></div>' + tableHtml(L, table.slice(from, from + 5), true) + '</section>';
-
-    // Noticias
-    html += '<section class="card"><div class="section-head"><h3>Noticias' + (unread ? ' <span class="pill solid-accent">' + unread + '</span>' : '') + '</h3><button class="btn ghost sm" data-act="nav" data-view="news">Todas ›</button></div>' +
-      s.news.slice(0, 3).map(newsItem).join('') + '</section>';
-    return { title: club.name, sub: s.name, html };
-  };
-
   function newsItem(n) {
     return '<div class="news-item ' + (n.read ? '' : 'unread') + '"><span class="t">' + esc(n.title) + '</span><span class="small">' + esc(n.body) + '</span><span class="small muted">' + esc(n.season) + ' · Jornada ' + n.md + '</span></div>';
   }
@@ -336,6 +276,7 @@
 
   VIEWS.squad = function () {
     const s = App.s;
+    C.ensureNumbers(s, s.clubId);
     const all = C.squad(s, s.clubId);
     const f = App.ui.squadFilter;
     const lineOf = (p) => PL.POSITIONS[p.pos].line;
@@ -353,7 +294,7 @@
       '<div><span>Edad media</span><b>' + U.avg(all.map((p) => p.age)).toFixed(1) + '</b></div><div><span>Valor estimado</span><b>' + U.money(C.squadValue(s, s.clubId)) + '</b></div></section>' +
       '<div class="chips">' + [['ALL', 'Todos'], ['GK', 'Porteros'], ['DEF', 'Defensas'], ['MID', 'Centrocampistas'], ['ATT', 'Delanteros']].map((c) => '<button class="chip ' + (f === c[0] ? 'on' : '') + '" data-act="squad-filter" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' +
       '<div class="chips">' + [['pos', 'Posición'], ['ovr', 'Media'], ['age', 'Edad'], ['fit', 'Forma física']].map((c) => '<button class="chip ' + (App.ui.squadSort === c[0] ? 'on' : '') + '" data-act="squad-sort" data-v="' + c[0] + '">Ordenar: ' + c[1] + '</button>').join('') + '</div>' +
-      '<section class="card"><div class="plist">' + list.map((p) => UI.playerRow(p, { meta: (xi.has(p.id) ? 'Titular · ' : '') + p.stats.apps + ' PJ · ' + p.stats.goals + ' G' })).join('') + '</div></section>';
+      '<section class="card"><div class="plist">' + list.map((p) => UI.playerRow(p, { meta: '#' + p.number + ' · ' + (xi.has(p.id) ? 'Titular · ' : '') + p.stats.apps + ' PJ · ' + p.stats.goals + ' G' })).join('') + '</div></section>';
     return { title: 'Plantilla', sub: C.userClub(s).name + ' · ' + s.season.label, html };
   };
 
@@ -385,6 +326,7 @@
   VIEWS.tactics = function () {
     const s = App.s;
     const club = C.userClub(s);
+    C.ensureNumbers(s, s.clubId);
     const squad = C.squad(s, s.clubId);
     if (!club.lineup || club.lineup.formation !== club.tactics.formation) club.lineup = LU.autoPick(squad, club.tactics.formation);
     const lu = club.lineup;
@@ -399,10 +341,16 @@
         const p = s.players[lu.xi[i]];
         const fit = p ? PL.fitLabel(PL.fit(p, sl[0])) : '';
         return '<button class="slot fit-' + fit + '" style="left:' + sl[1] + '%;top:' + sl[2] + '%" data-act="slot" data-i="' + i + '">' +
-          (p ? UI.ovr(p.ovr) : '<span class="ovr empty">?</span>') + '<span class="lab">' + esc(p ? shortName(p.name) : 'Vacío') + '</span><span class="p">' + sl[0] + '</span></button>';
+          (p ? UI.ovr(p.ovr) : '<span class="ovr empty">?</span>') + '<span class="lab">' + esc(p ? (p.number ? p.number + ' ' : '') + shortName(p.name) : 'Vacío') + '</span><span class="p">' + sl[0] + '</span></button>';
       }).join('') + '</div>';
     html += '<p class="small muted">Toca un jugador del campo para cambiarlo. Borde amarillo: adaptado a la posición. Borde rojo: fuera de posición.</p>';
     html += '<section class="card"><h3>Avisos</h3>' + (warns.length ? '<div class="warn-list">' + warns.map((w) => '<div class="warn-item ' + w.level + '"><i></i><span>' + esc(w.text) + '</span></div>').join('') + '</div>' : '<p class="small" style="color:var(--good)">Alineación sin problemas.</p>') + '</section>';
+    const tk = C.takers(s, s.clubId);
+    const sqSorted = squad.slice().sort((a, b) => b.ovr - a.ovr);
+    const tkSel = (k, label) => '<label class="field" for="tk-' + k + '">' + label + '<select class="input" id="tk-' + k + '" data-change="taker" data-k="' + k + '">' +
+      sqSorted.map((p) => '<option value="' + p.id + '"' + (p.id === tk[k] ? ' selected' : '') + '>#' + p.number + ' ' + esc(p.name) + ' (' + p.pos + ', ' + p.ovr + ')</option>').join('') + '</select></label>';
+    html += '<section class="card"><h3>Capitán y lanzadores</h3><div class="grid-2">' + tkSel('captain', 'Capitán') + tkSel('pen', 'Penaltis') + tkSel('fk', 'Faltas') + tkSel('corner', 'Córners') + '</div>' +
+      '<p class="small muted">Si el elegido no juega, lo sustituye el siguiente mejor. El capitán en el campo da un pequeño plus al equipo.</p></section>';
     html += '<section class="card"><h3>Instrucciones</h3>' + [['mentality', 'Mentalidad', 'Más ataque genera ocasiones pero deja huecos atrás.'], ['pressing', 'Presión', 'La presión alta da control del balón pero cansa más y provoca más tarjetas.'], ['tempo', 'Ritmo', 'Un ritmo rápido produce más disparos para ambos equipos.']].map((g) =>
       '<div class="stack"><span class="eyebrow">' + g[1] + '</span><div class="chips">' + LU.TACTIC_OPTIONS[g[0]].map((o) => '<button class="chip ' + (t[g[0]] === o[0] ? 'on' : '') + '" data-act="tactic" data-k="' + g[0] + '" data-v="' + o[0] + '">' + o[1] + '</button>').join('') + '</div><span class="small muted">' + g[2] + '</span></div>').join('') + '</section>';
     html += '<section class="card"><div class="section-head"><h3>Banquillo</h3><span class="small muted">' + lu.bench.length + ' suplentes</span></div><div class="plist">' +
@@ -413,95 +361,6 @@
     return { title: 'Tácticas y alineación', sub: club.name + ' · ' + lu.formation, html };
   };
   function shortName(n) { const parts = n.split(' '); return parts.length > 1 ? parts[0][0] + '. ' + parts.slice(1).join(' ') : n; }
-
-  VIEWS.calendar = function () {
-    const s = App.s;
-    const L = C.userLeague(s);
-    const mine = L.fixtures.filter((f) => f.home === s.clubId || f.away === s.clubId).sort((a, b) => a.md - b.md);
-    const md = App.ui.calMd || Math.max(1, Math.min(L.totalMd, L.played || 1));
-    const mdFix = L.fixtures.filter((f) => f.md === md);
-    let html = '<section class="card"><div class="section-head"><h3>Jornada ' + md + '</h3><span class="row" style="gap:6px"><button class="btn sm" data-act="cal-md" data-v="' + (md - 1) + '"' + (md <= 1 ? ' disabled' : '') + ' aria-label="Jornada anterior">‹</button><button class="btn sm" data-act="cal-md" data-v="' + (md + 1) + '"' + (md >= L.totalMd ? ' disabled' : '') + ' aria-label="Jornada siguiente">›</button></span></div>' +
-      '<div class="stack">' + mdFix.map((f) => {
-        const h = s.clubs[f.home]; const a = s.clubs[f.away];
-        const mineF = f.home === s.clubId || f.away === s.clubId;
-        return '<button class="row" data-act="match" data-id="' + f.id + '" data-league="' + L.id + '" style="border:0;background:' + (mineF ? 'var(--accent-soft)' : 'none') + ';padding:6px;border-radius:10px;text-align:left"' + (f.played ? '' : ' disabled') + '>' +
-          '<span class="grow ellipsis" style="text-align:right">' + esc(h.name) + '</span>' + UI.crest(h, 20) +
-          '<b class="num" style="min-width:44px;text-align:center">' + (f.played ? f.hg + '-' + f.ag : '–') + '</b>' + UI.crest(a, 20) +
-          '<span class="grow ellipsis">' + esc(a.name) + '</span></button>';
-      }).join('') + '</div></section>';
-    html += '<section class="card"><h3>Mis partidos</h3><div class="plist">' + mine.map((f) => {
-      const home = f.home === s.clubId;
-      const rival = s.clubs[home ? f.away : f.home];
-      const r = UI.resultFor(f, s.clubId);
-      return '<button class="prow" data-act="' + (f.played ? 'match' : 'noop') + '" data-id="' + f.id + '" data-league="' + L.id + '">' +
-        '<span class="pos">J' + f.md + '</span>' + UI.crest(rival, 26) +
-        '<span class="grow"><span class="name ellipsis" style="display:block">' + esc(rival.name) + '</span><span class="meta">' + (home ? 'Local' : 'Visitante') + ' · ' + esc(U.dateLabel(f.date)) + '</span></span>' +
-        (f.played ? '<b class="num">' + f.hg + '-' + f.ag + '</b><span class="res ' + r + '">' + r + '</span>' : '<span class="small muted">Pendiente</span>') + '</button>';
-    }).join('') + '</div></section>';
-    return { title: 'Calendario', sub: L.name + ' · ' + s.season.label + ' · ' + L.played + '/' + L.totalMd + ' jornadas', html };
-  };
-
-  VIEWS.match = function (params) {
-    const s = App.s;
-    const L = s.leagues[params.league];
-    const f = L && L.fixtures.find((x) => x.id === params.id);
-    if (!f) return { title: 'Partido', html: '<div class="card empty">Partido no encontrado.</div>' };
-    const home = s.clubs[f.home]; const away = s.clubs[f.away];
-    let html = '<section class="card hero-match"><span class="eyebrow">' + esc(L.name) + ' · Jornada ' + f.md + ' · ' + esc(U.dateLabel(f.date)) + '</span>' +
-      '<div class="fixture"><div class="team">' + UI.crest(home, 52) + '<span class="nm">' + esc(home.name) + '</span></div><div class="scoreboard">' + f.hg + '-' + f.ag + '</div><div class="team">' + UI.crest(away, 52) + '<span class="nm">' + esc(away.name) + '</span></div></div>';
-    const rep = f.report;
-    if (!rep) {
-      html += (f.goals && f.goals.length ? '<div class="timeline">' + f.goals.map((g) => evRow(g[0], g[1], '⚽ ' + esc(g[2]))).join('') + '</div>' : '<p class="small muted">Sin crónica detallada para este partido.</p>') + '</section>';
-      return { title: home.short + ' ' + f.hg + '-' + f.ag + ' ' + away.short, sub: 'Resultado', html };
-    }
-    html += '<p>' + esc(rep.summary) + '</p>';
-    if (rep.motm) html += '<div class="row"><span class="pill solid-accent">Mejor jugador</span><b>' + esc(rep.motm.name) + '</b><span class="small muted">' + rep.motm.r.toFixed(1) + '</span></div>';
-    html += '</section>';
-    if (rep.notices && rep.notices.length) html += '<section class="notice">' + rep.notices.map(esc).join('<br>') + '</section>';
-    html += '<section class="card"><h3>Desarrollo</h3><div class="timeline">' + (rep.events.length ? rep.events.map((e) => {
-      let t = '';
-      if (e.type === 'goal') t = '⚽ <b>' + esc(e.name) + '</b>' + (e.assist ? '<div class="sub">Asist. ' + esc(e.assist) + '</div>' : '');
-      else if (e.type === 'yellow') t = '<i class="ico yellow"></i>' + esc(e.name);
-      else if (e.type === 'red') t = '<i class="ico red"></i>' + esc(e.name) + (e.second ? ' <span class="sub">(2ª amarilla)</span>' : '');
-      else if (e.type === 'injury') t = '✚ ' + esc(e.name) + '<div class="sub">Lesión · ' + e.weeks + ' sem.</div>';
-      else if (e.type === 'sub') t = '⇄ ' + esc(e.name) + '<div class="sub">por ' + esc(e.out) + '</div>';
-      return evRow(e.min, e.side, t);
-    }).join('') : '<p class="small muted">Partido sin incidencias.</p>') + '</div></section>';
-    const st = rep.stats;
-    const line = (lbl, a, b, fmt) => {
-      const tot = a + b || 1;
-      return '<div class="statline"><span class="lbl">' + lbl + '</span><span class="v">' + (fmt ? fmt(a) : a) + '</span><div class="duel"><i style="width:' + (a / tot * 100) + '%"></i><i style="width:' + (b / tot * 100) + '%"></i></div><span class="v">' + (fmt ? fmt(b) : b) + '</span></div>';
-    };
-    html += '<section class="card"><h3>Estadísticas</h3>' + line('Posesión', st.poss[0], st.poss[1], (x) => x + '%') + line('Tiros', st.shots[0], st.shots[1]) + line('A puerta', st.sot[0], st.sot[1]) +
-      line('Goles esperados (xG)', st.xg[0], st.xg[1], (x) => x.toFixed(1)) + line('Córners', st.corners[0], st.corners[1]) + line('Faltas', st.fouls[0], st.fouls[1]) +
-      line('Amarillas', st.yellows[0], st.yellows[1]) + line('Rojas', st.reds[0], st.reds[1]) + '</section>';
-    html += '<section class="grid-2">' + rep.lineups.map((lu, i) => '<div class="card flat" style="padding:12px"><span class="eyebrow">' + esc((i ? away : home).short) + ' · ' + esc(lu.formation) + '</span>' +
-      lu.xi.concat(lu.subs).map((p, k) => '<div class="row small" style="gap:6px' + (k >= lu.xi.length ? ';color:var(--muted)' : '') + '"><span style="width:30px;font-weight:700">' + esc(p.pos) + '</span><span class="grow ellipsis">' + esc(shortName(p.name)) + '</span><b class="num">' + (p.r ? p.r.toFixed(1) : '—') + '</b></div>').join('') + '</div>').join('') + '</section>';
-    return { title: home.short + ' ' + f.hg + '-' + f.ag + ' ' + away.short, sub: 'Crónica del partido', html };
-  };
-  function evRow(min, side, content) {
-    return '<div class="ev"><div class="l">' + (side === 0 ? content : '') + '</div><div class="m">' + min + "'</div><div>" + (side === 1 ? content : '') + '</div></div>';
-  }
-
-  VIEWS.table = function () {
-    const s = App.s;
-    const lid = App.ui.tableLeague || C.userClub(s).leagueId;
-    const L = s.leagues[lid];
-    const tab = App.ui.tableTab;
-    let html = '<div class="chips">' + Object.values(s.leagues).map((l) => '<button class="chip ' + (l.id === lid ? 'on' : '') + '" data-act="table-league" data-v="' + l.id + '">' + esc(l.name) + '</button>').join('') + '</div>' +
-      '<div class="chips"><button class="chip ' + (tab === 'table' ? 'on' : '') + '" data-act="table-tab" data-v="table">Clasificación</button><button class="chip ' + (tab === 'scorers' ? 'on' : '') + '" data-act="table-tab" data-v="scorers">Goleadores</button></div>';
-    if (tab === 'table') {
-      html += '<section class="card"><div class="section-head"><h3>' + esc(L.name) + '</h3><span class="small muted">Jornada ' + L.played + '/' + L.totalMd + '</span></div>' + tableHtml(L, SC.table(L), false) +
-        '<div class="legend">' + (L.tier === 1 ? '<span><i class="zone ucl"></i>Liga de Campeones</span><span><i class="zone euro"></i>Otras europeas</span>' + (L.relegate ? '<span><i class="zone rel"></i>Descenso</span>' : '') : '<span><i class="zone pro"></i>Ascenso directo</span>') + '</div>' +
-        (!L.relegate && L.tier === 1 ? '<p class="small muted">En la base de demo esta liga no tiene segunda división cargada, así que no hay descensos.</p>' : '') + '</section>';
-    } else {
-      const top = C.topScorers(s, lid, 20);
-      html += '<section class="card"><h3>Máximos goleadores</h3>' + (top.length ? '<div class="table-wrap"><table class="tbl"><thead><tr><th class="l">#</th><th class="l">Jugador</th><th>PJ</th><th>G</th><th>A</th></tr></thead><tbody>' +
-        top.map((p, i) => '<tr class="' + (p.clubId === s.clubId ? 'me' : '') + '"><td class="l">' + (i + 1) + '</td><td class="l"><span class="row" style="gap:8px">' + UI.crest(s.clubs[p.clubId], 18) + '<span class="ellipsis">' + esc(p.name) + '</span></span></td><td>' + p.stats.apps + '</td><td class="pts">' + p.stats.goals + '</td><td>' + p.stats.assists + '</td></tr>').join('') +
-        '</tbody></table></div>' : '<p class="small muted">Aún no se han marcado goles.</p>') + '</section>';
-    }
-    return { title: 'Clasificación', sub: L.name + ' · ' + s.season.label, html };
-  };
 
   VIEWS.club = function () {
     const s = App.s;
@@ -518,7 +377,7 @@
       '</tbody></table></div>' : '<p class="small muted">Aún no has completado ninguna temporada.</p>') + '</section>';
     if (s.archive.length) {
       html += '<section class="card"><h3>Campeones</h3>' + s.archive.map((a) => '<div class="stack"><span class="eyebrow">' + esc(a.season) + '</span>' +
-        Object.keys(a.champions).map((lid) => '<div class="row small"><span class="grow">' + esc(s.leagues[lid] ? s.leagues[lid].name : lid) + '</span><b>' + esc(a.champions[lid]) + '</b></div>').join('') + '</div>').join('') + '</section>';
+        Object.keys(a.champions).map((lid) => '<div class="row small"><span class="grow">' + esc((a.compNames && a.compNames[lid]) || (s.leagues[lid] ? s.leagues[lid].name : lid)) + '</span><b>' + esc(a.champions[lid]) + '</b></div>').join('') + '</div>').join('') + '</section>';
     }
     return { title: 'Club', sub: club.name, html };
   };
@@ -647,41 +506,9 @@
       });
     },
     player: (d) => App.go('player', { id: d.id }),
-    match: (d) => App.go('match', { id: d.id, league: d.league }),
     'squad-filter': (d) => { App.ui.squadFilter = d.v; App.render(); },
     'squad-sort': (d) => { App.ui.squadSort = d.v; App.render(); },
-    'table-league': (d) => { App.ui.tableLeague = d.v; App.render(); },
-    'table-tab': (d) => { App.ui.tableTab = d.v; App.render(); },
-    'cal-md': (d) => { App.ui.calMd = Number(d.v); App.render(); },
     'fa-pos': (d) => { App.ui.faPos = d.v; App.render(); },
-    'sim-match': async () => {
-      await busy('Simulando partido…');
-      try {
-        const f = C.playUserMatch(App.s);
-        await persist();
-        unbusy();
-        if (f) App.go('match', { id: f.id, league: C.userLeague(App.s).id });
-      } finally { unbusy(); }
-    },
-    'sim-md-ask': () => {
-      const md = C.nextMd(App.s);
-      confirmSheet({
-        title: 'Simular jornada ' + md,
-        body: 'Se jugarán todos los partidos de la jornada ' + md + ', incluido el tuyo, y avanzarán el resto de ligas. No se puede deshacer.',
-        yes: 'Simular jornada',
-        onYes: () => ACTIONS['sim-md'](),
-      });
-    },
-    'sim-md': async () => {
-      await busy('Simulando jornada…');
-      try {
-        const r = C.playMatchday(App.s);
-        await persist();
-        unbusy();
-        if (r && r.userFixture) toast('Jornada ' + r.md + ' completada');
-        App.go('hub', {}, { root: true });
-      } finally { unbusy(); }
-    },
     'end-season-ask': () => confirmSheet({
       title: 'Cerrar temporada ' + App.s.season.label,
       body: 'Se guardará el historial, se aplicarán ascensos y descensos, los jugadores envejecerán y evolucionarán, llegarán canteranos y empezará la temporada ' + C.seasonLabel(App.s.season.year + 1) + '.',
@@ -896,6 +723,13 @@
   };
 
   const CHANGES = {
+    taker: async (el) => {
+      const club = C.userClub(App.s);
+      club.takers = Object.assign(C.takers(App.s, App.s.clubId), club.takers || {});
+      club.takers[el.dataset.k] = el.value;
+      await persist();
+      toast('Guardado');
+    },
     'auto-lineup': async (el) => {
       App.s.settings.autoLineup = el.checked;
       if (el.checked) { const club = C.userClub(App.s); club.lineup = LU.autoPick(C.squad(App.s, App.s.clubId), club.tactics.formation); }
