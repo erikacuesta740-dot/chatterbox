@@ -120,3 +120,25 @@ test('progresión de jugadores: jóvenes con potencial mejoran más que veterano
   assert.ok(young / 300 > 2, 'jóvenes progresan: ' + young / 300);
   assert.ok(old / 300 < -1, 'veteranos declinan: ' + old / 300);
 });
+
+test('plantillas reales (no verificadas): 40 clubes, sin duplicados y marcadas', () => {
+  const ds = M.DATA.realDataset();
+  assert.deepStrictEqual(M.generator.validateDataset(ds), []);
+  const s = C.create({ dataset: ds, clubId: 'real-madrid', seed: 'real' });
+  assert.deepStrictEqual(C.validate(s), []);
+  const real = Object.values(s.players).filter((p) => p.src === 'knowledge');
+  assert.ok(real.length > 800, 'jugadores reales: ' + real.length);
+  real.forEach((p) => { assert.strictEqual(p.demo, false); assert.ok(p.extId.startsWith('mc:')); });
+  assert.ok(C.squad(s, 'real-madrid').some((p) => p.name === 'Kylian Mbappé'));
+  // Las ligas sin plantillas reales siguen siendo ficticias y marcadas
+  assert.ok(C.squad(s, 'inter').every((p) => p.demo));
+  // Cada club tiene plantilla suficiente en todas las líneas
+  Object.values(s.clubs).forEach((c) => {
+    const sq = C.squad(s, c.id);
+    assert.ok(sq.filter((p) => p.pos === 'POR').length >= 2, c.id + ' sin porteros suficientes');
+    assert.ok(sq.length >= 21, c.id + ' plantilla corta');
+  });
+  // Ningún valor FC 27 inventado
+  M.values.setDb(null);
+  assert.strictEqual(M.values.careerStats(s).verified, 0);
+});

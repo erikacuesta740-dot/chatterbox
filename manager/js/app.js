@@ -177,8 +177,12 @@
 
   // Dataset elegido para una carrera nueva: demo o base importada por el usuario.
   function activeDataset() {
-    return App.ui.newDataset === 'custom' && App.customDataset ? App.customDataset : MCM.generator.defaultDataset();
+    const k = App.ui.newDataset || 'real';
+    if (k === 'custom' && App.customDataset) return App.customDataset;
+    if (k === 'demo') return MCM.generator.defaultDataset();
+    return realDs || (realDs = MCM.DATA.realDataset());
   }
+  let realDs = null;
   const clubRow = (c) => (Array.isArray(c) ? { name: c[0], short: c[1], rep: c[2], stadium: c[3], colors: [c[4], c[5]] }
     : { name: c.name, short: c.short || c.name.slice(0, 3).toUpperCase(), rep: c.rep, stadium: c.stadium || '', colors: c.colors || ['#888888', '#ffffff'], id: c.id, players: c.players });
 
@@ -186,10 +190,12 @@
     const ds = activeDataset();
     const leagues = ds.leagues;
     const L = leagues.find((l) => l.id === App.ui.newLeague) || leagues[0];
-    const dsChips = App.customDataset
-      ? '<div class="chips"><button class="chip ' + (App.ui.newDataset !== 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="demo">Base demo</button>' +
-        '<button class="chip ' + (App.ui.newDataset === 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="custom">' + esc((App.customDataset.info && App.customDataset.info.name) || 'Base importada') + '</button></div>'
-      : '';
+    const cur = App.ui.newDataset === 'custom' && !App.customDataset ? 'real' : (App.ui.newDataset || 'real');
+    const dsChips = '<div class="chips">' +
+      '<button class="chip ' + (cur === 'real' ? 'on' : '') + '" data-act="new-dataset" data-v="real">Plantillas reales (no verificadas)</button>' +
+      '<button class="chip ' + (cur === 'demo' ? 'on' : '') + '" data-act="new-dataset" data-v="demo">Demo ficticia</button>' +
+      (App.customDataset ? '<button class="chip ' + (cur === 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="custom">' + esc((App.customDataset.info && App.customDataset.info.name) || 'Base importada') + '</button>' : '') + '</div>' +
+      (cur === 'real' ? '<p class="notice small">Jugadores reales de Primera División y Premier League según lo que sabe el asistente hasta mediados de 2026. Medias y potenciales estimados, no de FC 27; puede faltar algún fichaje reciente. Las otras ligas usan jugadores ficticios.</p>' : '');
     if (!App.ui.newClub) {
       const clubs = L.clubs.map(clubRow).sort((a, b) => b.rep - a.rep);
       const html = dsChips + '<div class="chips" role="tablist">' + leagues.map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + esc(l.id) + '">' + esc(l.name) + ' · ' + esc(l.country) + '</button>').join('') + '</div>' +
@@ -353,9 +359,11 @@
       '<div style="text-align:center"><div class="eyebrow">Pot.</div><div class="scoreboard" style="font-size:1.8rem">' + p.pot + '</div></div></div>' +
       '<div class="row wrap">' + (club ? '<span class="row" style="gap:6px">' + UI.crest(club, 20) + '<span class="small">' + esc(club.name) + '</span></span>' : '<span class="pill mute">Agente libre</span>') +
       '<span class="pill ' + (st.code === 'ok' ? 'good' : st.code === 'tired' ? 'warn' : 'bad') + '">' + esc(st.label) + '</span>' +
-      (p.youth ? '<span class="pill info">Cantera</span>' : '') + (p.demo ? '<span class="pill mute">Ficticio (demo)</span>' : '') + '</div>' +
+      (p.youth ? '<span class="pill info">Cantera</span>' : '') + (p.demo ? '<span class="pill mute">Ficticio</span>' : p.src === 'knowledge' ? '<span class="pill warn">Real · no verificado</span>' : '<span class="pill info">Importado</span>') + '</div>' +
       '<p class="small muted">' + (p.demo
-        ? 'Jugador ficticio de la base de demostración: media, potencial, edad y posición son inventados, no datos de FC 27.'
+        ? 'Jugador ficticio: nombre, media, potencial, edad y posición son inventados, no datos de FC 27.'
+        : p.src === 'knowledge'
+        ? 'Jugador real. Club, posición y edad según el conocimiento del asistente hasta mediados de 2026 (no verificados; puede haber cambiado de club). Media y potencial son estimaciones, no las valoraciones de FC 27.'
         : 'Media, potencial, edad y posición proceden de la base importada «' + esc(s.dataset.name) + '»' + (p.extId ? ' (id ' + esc(p.extId) + ')' : '') + '. El juego no puede verificarlos por sí mismo.') + '</p></section>';
     html += fc27Card(p, club);
     html += '<section class="kv"><div><span>Valor estimado del juego</span><b>' + U.money(p.value) + '</b></div><div><span>Salario</span><b>' + U.wage(p.wage) + '</b></div>' +
@@ -380,7 +388,7 @@
     let html = '<section class="card"><div class="section-head"><h3>Valor de mercado FC 27</h3>';
     if (!r) {
       html += '<span class="pill warn">No verificado</span></div>' +
-        '<p class="small">No hay un valor de FC 27 importado para este jugador' + (p.demo ? ' (es un jugador ficticio de la base de demostración).' : '.') + '</p>' +
+        '<p class="small">No hay un valor de FC 27 importado para este jugador' + (p.demo ? ' (es un jugador ficticio).' : '.') + '</p>' +
         '<p class="small muted">El juego no calcula ni estima este dato. Se puede incorporar desde Ajustes › Valores de mercado FC 27.</p>';
     } else {
       const e = r.entry;

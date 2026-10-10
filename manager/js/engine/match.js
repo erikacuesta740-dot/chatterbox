@@ -47,10 +47,10 @@
 
   function shooterWeight(p, pos) {
     const line = PL.POSITIONS[pos].line;
-    let w = line === 'ATT' ? 5 : pos === 'MCO' ? 3 : line === 'MID' ? 1.8 : pos === 'DFC' ? 0.7 : line === 'DEF' ? 0.5 : 0.01;
-    if (pos === 'DC') w = 6.5;
+    let w = line === 'ATT' ? 4.2 : pos === 'MCO' ? 3 : line === 'MID' ? 2 : pos === 'DFC' ? 0.8 : line === 'DEF' ? 0.6 : 0.01;
+    if (pos === 'DC') w = 5;
     const sho = p.attrs.sho != null ? p.attrs.sho : 20;
-    return w * Math.pow(sho / 70, 2.2);
+    return w * Math.pow(sho / 70, 1.5);
   }
   function assistWeight(p, pos) {
     const line = PL.POSITIONS[pos].line;
@@ -83,10 +83,10 @@
 
     const possH = U.clamp(50 + (st[0].control - st[1].control) * 1.6, 28, 72);
     const poss = [possH, 100 - possH];
-    const volume = 12 * (st[0].volume + st[1].volume) / 2;
+    const volume = 11.5 * (st[0].volume + st[1].volume) / 2;
     const ratio = [st[0].attack / st[1].defense, st[1].attack / st[0].defense];
-    const expShots = [0, 1].map((i) => Math.min(30, volume * Math.pow(poss[i] / 50, 0.7) * Math.pow(ratio[i], 2.1)));
-    const xgShot = [0, 1].map((i) => U.clamp(0.1 * Math.pow(ratio[i], 1.7), 0.035, 0.26));
+    const expShots = [0, 1].map((i) => Math.min(30, volume * Math.pow(poss[i] / 50, 0.7) * Math.pow(ratio[i], 1.8)));
+    const xgShot = [0, 1].map((i) => U.clamp(0.095 * Math.pow(ratio[i], 1.4), 0.035, 0.26));
 
     // Estado en el campo
     const on = sides.map((s) => s.slots.map((pos, i) => (s.xi[i] ? { p: s.xi[i], pos, minIn: 0 } : null)).filter(Boolean));

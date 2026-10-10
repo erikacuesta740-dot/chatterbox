@@ -71,6 +71,16 @@
     NGA: ['ng', 'Nigeria'], GHA: ['ng', 'Ghana'], MAR: ['ar', 'Marruecos'], ALG: ['ar', 'Argelia'], NED: ['nl', 'Países Bajos'],
     BEL: ['nl', 'Bélgica'], CRO: ['sl', 'Croacia'], SRB: ['sl', 'Serbia'], POL: ['sl', 'Polonia'], DEN: ['no', 'Dinamarca'],
     SWE: ['no', 'Suecia'], NOR: ['no', 'Noruega'], JPN: ['jp', 'Japón'],
+    // Solo para mostrar nacionalidades de plantillas importadas
+    TUR: ['ar', 'Turquía'], UKR: ['sl', 'Ucrania'], SVN: ['sl', 'Eslovenia'], SVK: ['sl', 'Eslovaquia'], CZE: ['sl', 'Chequia'],
+    ROU: ['sl', 'Rumanía'], BUL: ['sl', 'Bulgaria'], MKD: ['sl', 'Macedonia del Norte'], ALB: ['sl', 'Albania'], KOS: ['sl', 'Kosovo'],
+    RUS: ['sl', 'Rusia'], HUN: ['sl', 'Hungría'], GEO: ['sl', 'Georgia'], UZB: ['sl', 'Uzbekistán'], GRE: ['it', 'Grecia'],
+    ISL: ['no', 'Islandia'], NIR: ['en', 'Irlanda del Norte'], AUS: ['en', 'Australia'], NZL: ['en', 'Nueva Zelanda'],
+    CAN: ['en', 'Canadá'], JAM: ['en', 'Jamaica'], RSA: ['en', 'Sudáfrica'], ZIM: ['en', 'Zimbabue'], GAM: ['af', 'Gambia'],
+    CPV: ['pt', 'Cabo Verde'], MOZ: ['pt', 'Mozambique'], VEN: ['la', 'Venezuela'], CHI: ['la', 'Chile'], ECU: ['la', 'Ecuador'],
+    PAR: ['la', 'Paraguay'], HON: ['la', 'Honduras'], DOM: ['la', 'República Dominicana'], HAI: ['fr', 'Haití'],
+    COD: ['af', 'RD Congo'], CMR: ['af', 'Camerún'], GUI: ['af', 'Guinea'], TOG: ['af', 'Togo'], BFA: ['af', 'Burkina Faso'],
+    NIG: ['af', 'Níger'], EGY: ['ar', 'Egipto'], TUN: ['ar', 'Túnez'], KOR: ['jp', 'Corea del Sur'],
   };
 
   // Extranjeros habituales por liga (ponderación aproximada)

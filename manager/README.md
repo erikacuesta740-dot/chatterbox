@@ -3,8 +3,11 @@
 Simulador de gestión futbolística pensado para jugar desde el iPhone. Eres entrenador y director
 deportivo: eliges el once, la táctica y gestionas la temporada; los partidos se simulan.
 
-> Los clubes y estadios son reales (aproximados a 2025/26). **Los jugadores son ficticios** y las
-> reputaciones son estimaciones propias. No son datos oficiales de EA Sports FC.
+> Los clubes y estadios son reales (aproximados a 2025/26). Por defecto, **Primera División y Premier League
+> tienen jugadores reales** (861) según el conocimiento del asistente hasta mediados de 2026, **no verificados**:
+> medias y potenciales son estimaciones, no las de FC 27, y puede faltar algún fichaje reciente. El resto de ligas
+> usa jugadores ficticios, y los huecos de las plantillas reales se completan con ficticios marcados como tales.
+> También se puede elegir la «Demo ficticia». Nada de esto son datos oficiales de EA SPORTS FC.
 
 ## Estado: Etapa 1 (base jugable)
 
@@ -46,7 +49,8 @@ servidor de archivos estáticos y editar desde cualquier sitio.
 index.html            Página principal
 css/app.css           Estilos (móvil primero, tema claro y oscuro)
 js/core/util.js       Azar con semilla, formatos
-js/data/              Ligas y clubes (demo), nombres ficticios, generador de mundo
+js/data/              Ligas y clubes, plantillas reales (no verificadas), nombres ficticios,
+                      registro de valores FC 27, generador de mundo
 js/engine/            Jugadores, alineaciones, calendario, simulación, carrera
 js/store/storage.js   Guardado (IndexedDB → localStorage → memoria); interfaz lista para la nube
 js/ui/components.js   Escudos genéricos, insignias, barras, filas
@@ -64,3 +68,13 @@ npm test          # motor: calendario, simulación, independencia, sanciones, 3 
 npm run e2e       # navegador con tamaño iPhone (requiere servidor: npm run serve)
 npm run build     # genera dist/modo-carrera-manager.html (un único archivo)
 ```
+
+## Datos reales: cómo pasarlos
+
+Hay dos archivos posibles (ver `docs/DATA_FORMAT.md` y `docs/FC27_VALUES.md`):
+
+1. **Plantillas** (JSON): ligas, clubes y jugadores con `id`, nombre, posición, edad, media, potencial.
+   Se importa en Ajustes › Base de datos de plantillas y se elige al crear una carrera.
+2. **Valores de mercado FC 27** (CSV o JSON): `id,name,club,value,currency,edition,source,sourceUrl,retrievedAt,verified`.
+   Se importa en Ajustes › Valores de mercado FC 27. Se enlaza por `id` o, si no coincide, por nombre y club exactos,
+   así que también funciona con los jugadores reales incluidos (por ejemplo «Kylian Mbappé» + «Real Madrid»).

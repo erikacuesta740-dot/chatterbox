@@ -133,9 +133,31 @@
         attrs: raw.attrs, wage: raw.wage, contractEnd: raw.contractEnd, clubId: club.id, leagueNat: league.nat,
         rep: club.rep, wealth: club.wealth, real: true, extId: raw.id != null ? String(raw.id) : null,
       });
+      if (raw.src) p.src = raw.src;
       ctx.players[p.id] = p;
       return p.id;
     });
+  }
+
+  // Completa una plantilla importada incompleta con jugadores ficticios (marcados como tales).
+  const FILL_MIN = { GK: 3, DEF: 8, MID: 8, ATT: 5 };
+  const FILL_POS = { GK: ['POR'], DEF: ['DFC', 'LD', 'LI', 'DFC'], MID: ['MC', 'MCD', 'MCO'], ATT: ['DC', 'ED', 'EI'] };
+  function fillSquad(ctx, club, league, ids) {
+    const base = G.baseOvr(club.rep);
+    Object.keys(FILL_MIN).forEach((line) => {
+      let have = ids.filter((id) => P.POSITIONS[ctx.players[id].pos].line === line).length;
+      while (have < FILL_MIN[line]) {
+        const young = ctx.rng.chance(0.6);
+        const p = G.createPlayer(ctx, {
+          pos: ctx.rng.pick(FILL_POS[line]), clubId: club.id, leagueNat: league.nat, rep: club.rep, wealth: club.wealth,
+          age: young ? ctx.rng.int(17, 20) : ctx.rng.int(22, 31), ovr: base - (young ? ctx.rng.range(10, 15) : ctx.rng.range(5, 9)),
+        });
+        ctx.players[p.id] = p;
+        ids.push(p.id);
+        have++;
+      }
+    });
+    return ids;
   }
 
   G.transferBudget = function (rep, wealth) {
@@ -174,7 +196,10 @@
           squad: [],
         };
         clubs[id] = club;
-        club.squad = c.players && c.players.length ? importSquad(ctx, club, L, c.players) : generateSquad(ctx, club, L);
+        if (c.players && c.players.length) {
+          club.squad = importSquad(ctx, club, L, c.players);
+          if (c.fill) fillSquad(ctx, club, L, club.squad);
+        } else club.squad = generateSquad(ctx, club, L);
         clubIds.push(id);
       });
       leagues[L.id] = {
