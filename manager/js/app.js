@@ -21,11 +21,6 @@
     ui: { squadFilter: 'ALL', squadSort: 'pos', tableLeague: null, tableTab: 'table', newLeague: 'ESP1', newClub: null, calMd: null, marketPos: 'ALL', marketQ: '', marketMinOvr: 0, faPos: 'ALL' },
   });
 
-  const STAGE_NOTE = {
-    2: 'Etapa 2 · Gestión deportiva',
-    3: 'Etapa 3 · Profundidad',
-    4: 'Etapa 4 · Usuarios y nube',
-  };
 
   // ---------- Utilidades de interfaz ----------
   const $ = (sel) => document.querySelector(sel);
@@ -307,18 +302,18 @@
       ['new-career', 'Nueva carrera', 'Elige liga y club', 'plus', null],
       ['careers', 'Mis carreras guardadas', App.metas.length + ' en este dispositivo', 'folder', null],
       ['club', 'Club y plantilla', 'Estadio, objetivos, historial', 'club', null],
-      ['market', 'Mercado de fichajes', 'Buscar jugadores', 'transfer', 2],
+      ['market', 'Mercado de fichajes', MCM.market.window(s).open ? 'Ventana abierta' : 'Ventana cerrada', 'transfer', 2],
       ['freeagents', 'Agentes libres', s.freeAgents.length + ' sin equipo', 'free', 2],
       ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation, 'tactics', null],
       ['calendar', 'Calendario y resultados', 'Jornadas y crónicas', 'calendar', null],
       ['table', 'Clasificación', 'Tablas y goleadores', 'table', null],
-      ['youth', 'Cantera y jóvenes promesas', 'Sub-21 del club', 'youth', 3],
-      ['finance', 'Finanzas y contratos', U.money(s.clubs[s.clubId].budget) + ' disponibles', 'money', 2],
+      ['youth', 'Cantera y jóvenes promesas', (s.dev ? s.dev.academy.length : 0) + ' en la cantera', 'youth', 3],
+      ['finance', 'Finanzas y contratos', U.money(s.clubs[s.clubId].budget) + ' para fichajes', 'money', 2],
       ['news', 'Noticias', s.news.filter((n) => !n.read).length + ' sin leer', 'news', null],
       ['settings', 'Ajustes', 'Guardado, exportar, tema', 'settings', null],
     ];
     const html = '<div class="menu-grid">' + items.map((it) => '<button class="menu-item" data-act="' + (it[0] === 'new-career' ? 'new-career' : 'nav') + '" data-view="' + it[0] + '">' + icon(it[3]) + '<b>' + esc(it[1]) + '</b><span>' + esc(it[2]) + '</span>' +
-      (it[4] ? '<span class="pill mute" style="justify-self:start">Parcial · ' + esc(STAGE_NOTE[it[4]].split(' · ')[0]) + '</span>' : '') + '</button>').join('') + '</div>';
+      '</button>').join('') + '</div>';
     return { title: 'Menú principal', sub: s.name, html };
   };
 
@@ -343,43 +338,6 @@
       '<div class="chips">' + [['pos', 'Posición'], ['ovr', 'Media'], ['age', 'Edad'], ['fit', 'Forma física']].map((c) => '<button class="chip ' + (App.ui.squadSort === c[0] ? 'on' : '') + '" data-act="squad-sort" data-v="' + c[0] + '">Ordenar: ' + c[1] + '</button>').join('') + '</div>' +
       '<section class="card"><div class="plist">' + list.map((p) => UI.playerRow(p, { meta: (xi.has(p.id) ? 'Titular · ' : '') + p.stats.apps + ' PJ · ' + p.stats.goals + ' G' })).join('') + '</div></section>';
     return { title: 'Plantilla', sub: C.userClub(s).name + ' · ' + s.season.label, html };
-  };
-
-  VIEWS.player = function (params) {
-    const s = App.s;
-    const p = s.players[params.id];
-    if (!p) return { title: 'Jugador', html: '<div class="card empty">Este jugador ya no está en la base de datos (retirado).</div>' };
-    const club = p.clubId ? s.clubs[p.clubId] : null;
-    const st = PL.statusOf(p);
-    const attrs = p.pos === 'POR' ? PL.GK_ATTRS : PL.OUT_ATTRS;
-    const sts = p.stats;
-    let html = '<section class="card"><div class="row">' + UI.ovr(p.ovr, 'lg') + '<div class="grow"><h2>' + esc(p.name) + '</h2>' +
-      '<div class="small muted">' + esc(PL.POSITIONS[p.pos].name) + (p.alt.length ? ' · también ' + p.alt.join(', ') : '') + '</div>' +
-      '<div class="small muted">' + p.age + ' años · ' + esc(MCM.DATA.nationName(p.nat)) + '</div></div>' +
-      '<div style="text-align:center"><div class="eyebrow">Pot.</div><div class="scoreboard" style="font-size:1.8rem">' + p.pot + '</div></div></div>' +
-      '<div class="row wrap">' + (club ? '<span class="row" style="gap:6px">' + UI.crest(club, 20) + '<span class="small">' + esc(club.name) + '</span></span>' : '<span class="pill mute">Agente libre</span>') +
-      '<span class="pill ' + (st.code === 'ok' ? 'good' : st.code === 'tired' ? 'warn' : 'bad') + '">' + esc(st.label) + '</span>' +
-      (p.youth ? '<span class="pill info">Cantera</span>' : '') + (p.demo ? '<span class="pill mute">Ficticio</span>' : p.src === 'knowledge' ? '<span class="pill warn">Real · no verificado</span>' : '<span class="pill info">Importado</span>') + '</div>' +
-      '<p class="small muted">' + (p.demo
-        ? 'Jugador ficticio: nombre, media, potencial, edad y posición son inventados, no datos de FC 27.'
-        : p.src === 'knowledge'
-        ? 'Jugador real. Club, posición y edad según el conocimiento del asistente hasta mediados de 2026 (no verificados; puede haber cambiado de club). Media y potencial son estimaciones, no las valoraciones de FC 27.'
-        : 'Media, potencial, edad y posición proceden de la base importada «' + esc(s.dataset.name) + '»' + (p.extId ? ' (id ' + esc(p.extId) + ')' : '') + '. El juego no puede verificarlos por sí mismo.') + '</p></section>';
-    html += fc27Card(p, club);
-    html += '<section class="kv"><div><span>Valor estimado del juego</span><b>' + U.money(p.value) + '</b></div><div><span>Salario</span><b>' + U.wage(p.wage) + '</b></div>' +
-      '<div><span>Contrato hasta</span><b>Jun ' + (p.contractEnd) + '</b></div><div><span>Forma (nota)</span><b>' + p.form.toFixed(1) + '</b></div></section>';
-    html += '<section class="card"><h3>Estado</h3>' +
-      '<div class="attr"><span>Forma física</span>' + UI.bar(p.fitness, 100) + '<b>' + Math.round(p.fitness) + '</b></div>' +
-      '<div class="attr"><span>Moral</span>' + UI.bar(p.morale, 100, p.morale < 45 ? 'bad' : 'accent') + '<b>' + Math.round(p.morale) + '</b></div>' +
-      '<p class="small muted">Moral: ' + UI.moraleLabel(p.morale) + '. Amarillas acumuladas: ' + p.yc + '/5.</p></section>';
-    html += '<section class="card"><h3>Atributos</h3>' + attrs.map((a) => '<div class="attr"><span>' + a[1] + '</span>' + UI.bar(p.attrs[a[0]], 99, 'accent') + '<b>' + p.attrs[a[0]] + '</b></div>').join('') + '</section>';
-    html += '<section class="card"><h3>Temporada ' + esc(s.season.label) + '</h3><div class="grid-3">' +
-      [['Partidos', sts.apps], ['Titular', sts.starts], ['Minutos', sts.min], ['Goles', sts.goals], ['Asist.', sts.assists], ['Nota', sts.rN ? (sts.rSum / sts.rN).toFixed(2) : '—'],
-        ['MVP', sts.motm], ['Amarillas', sts.yel], ['Rojas', sts.red]].map((x) => '<div class="kv" style="display:block"><div><span>' + x[0] + '</span><b>' + x[1] + '</b></div></div>').join('') + '</div></section>';
-    html += '<section class="card"><h3>Historial de lesiones</h3>' + (p.injuries.length
-      ? p.injuries.slice().reverse().map((i) => '<div class="row"><span class="grow">' + esc(i.type) + '</span><span class="small muted">' + esc(i.season) + ' · ' + i.weeks + ' sem.</span></div>').join('')
-      : '<p class="small muted">Sin lesiones registradas.</p>') + '</section>';
-    return { title: p.name, sub: p.pos + ' · ' + (club ? club.name : 'Sin club'), html };
   };
 
   /* Tarjeta del valor de mercado de FC 27: solo se muestra un importe si viene de una importación con fuente. */
@@ -548,63 +506,6 @@
     return { title: 'Club', sub: club.name, html };
   };
 
-  VIEWS.finance = function () {
-    const s = App.s;
-    const club = C.userClub(s);
-    const squad = C.squad(s, club.id).sort((a, b) => a.contractEnd - b.contractEnd || b.wage - a.wage);
-    const wages = C.wageBill(s, club.id);
-    const endYear = s.season.year + 1;
-    let html = '<section class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(club.budget) + '</b></div><div><span>Salarios / semana</span><b>' + U.money(wages) + '</b></div>' +
-      '<div><span>Salarios / temporada</span><b>' + U.money(wages * 52) + '</b></div><div><span>Valor estimado plantilla</span><b>' + U.money(C.squadValue(s, club.id)) + '</b></div></section>' +
-      '<section class="notice info">Todos los salarios del juego se expresan en euros por semana. La negociación de renovaciones, ingresos por taquilla y el balance detallado llegan en la Etapa 2. Por ahora, los contratos que vencen se renuevan automáticamente al cerrar la temporada.</section>' +
-      '<section class="card"><h3>Contratos</h3><div class="table-wrap"><table class="tbl"><thead><tr><th class="l">Jugador</th><th>Media</th><th>Salario</th><th>Fin</th></tr></thead><tbody>' +
-      squad.map((p) => '<tr><td class="l"><button data-act="player" data-id="' + p.id + '" style="border:0;background:none;padding:0;text-align:left;font-weight:600">' + esc(p.name) + '</button><div class="small muted">' + p.pos + ' · ' + p.age + ' años</div></td><td>' + p.ovr + '</td><td>' + U.money(p.wage) + '</td><td>' +
-        (p.contractEnd <= endYear ? '<span class="pill warn">' + p.contractEnd + '</span>' : p.contractEnd) + '</td></tr>').join('') + '</tbody></table></div></section>';
-    return { title: 'Finanzas y contratos', sub: club.name, html };
-  };
-
-  VIEWS.market = function () {
-    const s = App.s;
-    const q = App.ui.marketQ.trim().toLowerCase();
-    const pos = App.ui.marketPos;
-    const minOvr = App.ui.marketMinOvr;
-    const res = Object.values(s.players).filter((p) => p.clubId && p.clubId !== s.clubId && (pos === 'ALL' || p.pos === pos) && p.ovr >= minOvr && (!q || p.name.toLowerCase().includes(q)))
-      .sort((a, b) => b.ovr - a.ovr).slice(0, 60);
-    let html = '<section class="notice">Vista previa del mercado: puedes buscar y consultar jugadores. Las ofertas, negociaciones, ventas y cesiones llegan en la Etapa 2.</section>' +
-      '<form class="card" data-submit="market-search"><label class="field" for="mk-q">Buscar por nombre<input class="input" id="mk-q" name="q" value="' + esc(App.ui.marketQ) + '" placeholder="Nombre del jugador"></label>' +
-      '<div class="grid-2"><label class="field" for="mk-pos">Posición<select class="input" id="mk-pos" name="pos"><option value="ALL">Todas</option>' + PL.POS_ORDER.map((p) => '<option value="' + p + '"' + (p === pos ? ' selected' : '') + '>' + p + '</option>').join('') + '</select></label>' +
-      '<label class="field" for="mk-ovr">Media mínima<input class="input" id="mk-ovr" name="ovr" type="number" inputmode="numeric" min="0" max="99" value="' + (minOvr || '') + '"></label></div>' +
-      '<button class="btn primary" type="submit">Buscar</button></form>' +
-      '<section class="card"><div class="section-head"><h3>Resultados</h3><span class="small muted">' + res.length + (res.length === 60 ? '+' : '') + '</span></div><div class="plist">' +
-      res.map((p) => UI.playerRow(p, { meta: esc(s.clubs[p.clubId].short) + ' · ' + marketLabel(p, s.clubs[p.clubId]) })).join('') + '</div></section>';
-    return { title: 'Mercado de fichajes', sub: 'Presupuesto ' + U.money(C.userClub(s).budget), html };
-  };
-
-  function marketLabel(p, club) {
-    const r = MCM.values.lookup(p, club ? club.name : '');
-    return r ? 'FC 27: ' + esc(r.entry.raw) : 'est. ' + U.money(p.value) + ' (FC 27 no verificado)';
-  }
-
-  VIEWS.freeagents = function () {
-    const s = App.s;
-    const pos = App.ui.faPos;
-    const list = s.freeAgents.map((id) => s.players[id]).filter((p) => p && (pos === 'ALL' || p.pos === pos)).sort((a, b) => b.ovr - a.ovr);
-    const html = '<section class="notice">Consulta de jugadores sin club. La oferta y negociación de contratos llega en la Etapa 2.</section>' +
-      '<div class="chips"><button class="chip ' + (pos === 'ALL' ? 'on' : '') + '" data-act="fa-pos" data-v="ALL">Todos</button>' + PL.POS_ORDER.map((p) => '<button class="chip ' + (pos === p ? 'on' : '') + '" data-act="fa-pos" data-v="' + p + '">' + p + '</button>').join('') + '</div>' +
-      '<section class="card"><div class="plist">' + (list.length ? list.map((p) => UI.playerRow(p, { meta: 'Pot. ' + p.pot + ' · pide ' + U.wage(p.wage) })).join('') : '<p class="small muted">No hay agentes libres en esta posición.</p>') + '</div></section>';
-    return { title: 'Agentes libres', sub: s.freeAgents.length + ' jugadores sin club', html };
-  };
-
-  VIEWS.youth = function () {
-    const s = App.s;
-    const list = C.squad(s, s.clubId).filter((p) => p.age <= 21).sort((a, b) => b.pot - a.pot);
-    const html = '<section class="notice">Los jóvenes progresan al final de cada temporada según edad, potencial y minutos jugados. Cada verano llegan canteranos nuevos. La gestión detallada de la cantera (ojeadores, cesiones, promoción) llega en la Etapa 3.</section>' +
-      '<section class="card"><h3>Sub-21 del primer equipo</h3><div class="plist">' + (list.length ? list.map((p) => '<button class="prow" data-act="player" data-id="' + p.id + '"><span class="pos">' + p.pos + '</span>' + UI.ovr(p.ovr) +
-        '<span class="grow"><span class="name ellipsis" style="display:block">' + esc(p.name) + (p.youth ? ' <span class="pill info">Cantera</span>' : '') + '</span><span class="meta">' + p.age + ' años · ' + p.stats.min + ' min esta temporada</span>' + UI.bar(p.ovr, p.pot, 'accent') + '</span>' +
-        '<span class="side"><span class="small muted">Potencial</span><b class="num">' + p.pot + '</b></span></button>').join('') : '<p class="small muted">No hay jugadores sub-21.</p>') + '</div></section>';
-    return { title: 'Cantera', sub: 'Jóvenes promesas', html };
-  };
-
   VIEWS.news = function () {
     const s = App.s;
     const html = '<section class="card">' + (s.news.length ? s.news.map(newsItem).join('') : '<p class="small muted">Sin noticias.</p>') + '</section>';
@@ -674,6 +575,7 @@
     try {
       const s = await MCM.store.load(id);
       if (!s) throw new Error('No se encontró la carrera.');
+      C.migrate(s);
       App.s = s;
       App.ui.tableLeague = null;
       App.ui.calMd = null;
@@ -912,6 +814,7 @@
     if (!data || !data.clubs || !data.players || !data.leagues || !data.clubId || !data.clubs[data.clubId]) { toast('No parece una carrera exportada de este juego.'); return; }
     const errors = C.validate(data);
     if (errors.length) { toast('Carrera dañada: ' + errors[0]); return; }
+    C.migrate(data);
     data.id = U.uid('car');
     data.name = data.name + ' (importada)';
     data.owner = App.profile || data.owner;
@@ -1007,7 +910,7 @@
       if (!form) return;
       ev.preventDefault();
       const fn = FORMS[form.dataset.submit];
-      if (fn) Promise.resolve(fn(new FormData(form), form)).catch((e) => { console.error(e); unbusy(); toast('Error: ' + e.message); });
+      if (fn) Promise.resolve(fn(new FormData(form), form, ev)).catch((e) => { console.error(e); unbusy(); toast('Error: ' + e.message); });
     });
     document.addEventListener('change', (ev) => {
       const el = ev.target.closest('[data-change]');
@@ -1016,6 +919,13 @@
       if (fn) Promise.resolve(fn(el)).catch((e) => { console.error(e); toast('Error: ' + e.message); });
     });
   }
+
+  // Acceso para los módulos de interfaz que amplían la app (fichajes, cantera, nube).
+  App.VIEWS = VIEWS;
+  App.ACTIONS = ACTIONS;
+  App.FORMS = FORMS;
+  App.CHANGES = CHANGES;
+  App.h = { sheet, closeSheet, confirmSheet, persist, toast, busy, unbusy, fc27Card, tableHtml, shortName, newsItem, refreshMetas, openCareer };
 
   App.start = async function () {
     bind();

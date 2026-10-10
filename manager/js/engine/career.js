@@ -10,7 +10,7 @@
   const SC = MCM.schedule;
   const C = (MCM.career = {});
 
-  C.SCHEMA = 1;
+  C.SCHEMA = 2;
   C.START_YEAR = 2026;
   C.seasonLabel = (y) => y + '/' + String(y + 1).slice(2);
 
@@ -130,6 +130,8 @@
       settings: { autoLineup: true },
     };
     setupSeason(s);
+    MCM.market.init(s);
+    MCM.dev.init(s);
     const club = C.userClub(s);
     C.news(s, 'board', 'Bienvenido a ' + club.name,
       s.managerName + ' es el nuevo entrenador de ' + club.name + '. La directiva fija el objetivo de la temporada ' + s.season.label + ': ' + club.objective.text.toLowerCase() + '.');
@@ -366,6 +368,8 @@
     L.played = md;
     advanceOtherLeagues(s, L.played / L.totalMd);
     weeklyTick(s);
+    MCM.market.weekly(s, !!(userF && userF.home === s.clubId));
+    if (MCM.dev) MCM.dev.weekly(s);
     streakNews(s);
     if (L.played === L.totalMd) {
       s.season.finished = true;
@@ -474,26 +478,28 @@
     });
     if (s.archive.length > 30) s.archive.length = 30;
 
+    // Economía de la temporada, cesiones que vuelven y contratos del usuario que vencen
+    const finRes = MCM.market.closeSeason(s, myRow.pos, tables[userL.id].length, objectiveMet);
+    MCM.market.endOfSeasonContracts(s);
+
     // Evolución, edad, contratos y retiradas
     const developments = [];
     const retired = [];
     const expiredUser = [];
+    MCM.dev.beforeAnnualDevelopment(s);
     Object.values(s.players).forEach((p) => {
       const club = p.clubId ? s.clubs[p.clubId] : null;
       const total = club ? s.leagues[club.leagueId].totalMd * 90 : 1;
-      const share = club ? p.stats.min / Math.max(1, total) : 0.15;
+      const share = p.academy ? 0.45 : club ? p.stats.min / Math.max(1, total) : 0.15;
       const before = p.ovr;
       PL.developSeason(p, rng, share);
       if (club && club.id === s.clubId && Math.abs(p.ovr - before) >= 3) developments.push({ name: p.name, from: before, to: p.ovr, age: p.age });
       p.age++;
       const retireP = p.age >= 38 ? 0.95 : p.age >= 36 ? 0.55 : p.age >= 34 ? 0.2 : (p.age >= 32 && p.ovr < 62 ? 0.25 : 0);
-      if (rng.chance(retireP)) { retired.push(p); return; }
-      if (club && p.contractEnd <= year + 1) {
+      if (!p.academy && rng.chance(retireP)) { retired.push(p); return; }
+      if (club && !p.academy && p.contractEnd <= year + 1) {
         if (club.id === s.clubId) {
-          // Etapa 1: renovación automática del club del usuario (la negociación llega en la Etapa 2).
-          p.contractEnd = year + 1 + rng.int(1, 3);
-          p.wage = Math.max(p.wage, PL.fairWage(p, club.wealth));
-          expiredUser.push(p.name);
+          // Ya gestionado en endOfSeasonContracts (renovar es decisión del usuario).
         } else if (rng.chance(0.78)) {
           p.contractEnd = year + 1 + rng.int(1, 4);
           p.wage = PL.fairWage(p, club.wealth);
@@ -551,10 +557,6 @@
           if (club.id === s.clubId) intakeUser.push(signed);
         }
       }
-      // Cantera anual del usuario: 2 promesas extra
-      if (club.id === s.clubId) {
-        for (let i = 0; i < 2 && club.squad.length < 28; i++) intakeUser.push(youthPlayer(s, club, rng.pick(PL.POS_ORDER.filter((x) => x !== 'POR')), rng));
-      }
     });
     // Renovar la bolsa de agentes libres (jugadores sin contrato que llegan al mercado)
     const faCtx = { rng, nextId: s.nextId, usedNames: new Set(), players: s.players, startYear: year + 1 };
@@ -576,6 +578,7 @@
 
     // Presupuesto: ingresos según posición y categoría
     Object.values(s.clubs).forEach((club) => {
+      if (club.id === s.clubId) return;
       const L = s.leagues[club.leagueId];
       club.budget = Math.max(club.budget, MCM.generator.transferBudget(club.rep, L.wealth) * 0.6) + Math.round(MCM.generator.transferBudget(club.rep, L.wealth) * 0.4 / 1e5) * 1e5;
     });
@@ -587,7 +590,9 @@
     if (myMove) C.news(s, 'season', myMove.type === 'up' ? '¡Ascenso!' : 'Descenso consumado', userClub.name + (myMove.type === 'up' ? ' jugará en ' : ' bajará a ') + s.leagues[myMove.to].name + ' la próxima temporada.');
     developments.slice(0, 6).forEach((d) => C.news(s, 'youth', d.name + (d.to > d.from ? ' progresa' : ' baja su nivel'), d.name + ' pasa de ' + d.from + ' a ' + d.to + ' de media.'));
     if (intakeUser.length) C.news(s, 'youth', 'Llegan ' + intakeUser.length + ' canteranos', 'Se incorporan desde la cantera: ' + intakeUser.map((p) => p.name + ' (' + p.pos + ', ' + p.age + ' años, pot. ' + p.pot + ')').join(', ') + '.');
-    if (expiredUser.length) C.news(s, 'contract', 'Renovaciones automáticas', 'Se renovaron los contratos que vencían: ' + expiredUser.join(', ') + '. La negociación manual llegará en la Etapa 2.');
+    C.news(s, 'finance', 'Balance económico ' + s.season.label, 'Ingresos: ' + U.money(finRes.income) + '. Gastos: ' + U.money(finRes.expense) + '. Resultado: ' + U.money(finRes.net) + '.');
+    MCM.market.newSeasonBudgets(s, objectiveMet, finRes.net);
+    MCM.dev.endSeason(s, objectiveMet);
     const retiredMine = retired.filter((p) => p.clubId === s.clubId);
     if (retiredMine.length) C.news(s, 'contract', 'Retiradas', retiredMine.map((p) => p.name).join(', ') + ' se retira' + (retiredMine.length > 1 ? 'n' : '') + ' del fútbol profesional.');
 
@@ -600,6 +605,18 @@
     C.news(s, 'board', 'Objetivo ' + s.season.label, 'La directiva fija el objetivo: ' + club.objective.text.toLowerCase() + '.');
     s.updatedAt = new Date().toISOString();
     return s.history[0];
+  };
+
+  /** Actualiza partidas guardadas con versiones anteriores sin perder nada. */
+  C.migrate = function (s) {
+    MCM.market.init(s);
+    if (MCM.dev) MCM.dev.init(s);
+    Object.values(s.players).forEach((p) => {
+      if (p.listed == null) p.listed = false;
+      if (p.loan === undefined) p.loan = null;
+    });
+    s.schema = C.SCHEMA;
+    return s;
   };
 
   // ---------- Metadatos y validación ----------
@@ -624,6 +641,11 @@
     s.freeAgents.forEach((pid) => {
       if (seen[pid]) errors.push('Agente libre ' + pid + ' también en club');
       if (s.players[pid] && s.players[pid].clubId) errors.push('Agente libre con club ' + pid);
+    });
+    (s.dev ? s.dev.academy : []).forEach((pid) => {
+      const p = s.players[pid];
+      if (!p || !p.academy || p.clubId !== s.clubId) errors.push('Canterano incoherente ' + pid);
+      if (seen[pid]) errors.push('Canterano también en plantilla ' + pid);
     });
     Object.values(s.leagues).forEach((L) => L.clubIds.forEach((id) => {
       if (s.clubs[id].leagueId !== L.id) errors.push('Liga incoherente para ' + id);

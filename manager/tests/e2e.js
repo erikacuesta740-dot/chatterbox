@@ -112,6 +112,53 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   await click('[data-act="nav"][data-view="settings"]');
   await snap('14-ajustes');
 
+  step('mercado: buscar, negociar y fichar');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="market"]');
+  await page.fill('#mk-q', 'Jarrad Branthwaite');
+  await click('form[data-submit="mk-search"] button[type=submit]');
+  await click('.prow[data-act="player"]');
+  await page.waitForSelector('text=Precio que pide');
+  await click('[data-act="talk-start"][data-kind="buy"]');
+  await page.waitForSelector('#tk-fee');
+  await snap('20-negociacion-club');
+  const ask = await page.evaluate(() => { const s = MCM.app.s; s.clubs[s.clubId].budget += 80e6; s.clubs[s.clubId].wageBudget += 200000; const t = Object.values(s.market.talks)[0]; return t.asking; });
+  await page.fill('#tk-fee', String(ask));
+  await click('form[data-submit="talk-club"] button[type=submit]');
+  await page.waitForSelector('#tk-wage');
+  await snap('21-negociacion-jugador');
+  await click('form[data-submit="talk-player"] button[type=submit]');
+  await page.waitForSelector('text=Contrato y mercado');
+  const owned = await page.evaluate(() => { const s = MCM.app.s; return s.players[Object.keys(s.players).find((id) => s.players[id].name === 'Jarrad Branthwaite')].clubId === s.clubId; });
+  if (!owned) throw new Error('El fichaje no se completó');
+
+  step('oferta recibida y venta');
+  await page.evaluate(() => {
+    const s = MCM.app.s; const p = MCM.career.squad(s, s.clubId).sort((a, b) => a.ovr - b.ovr)[2];
+    s.market.offers.unshift({ id: 'oE2E', pid: p.id, clubId: 'real-oviedo', type: 'buy', fee: 3e6, maxFee: 3.3e6, expiresMd: 9, status: 'pending', md: 0 });
+    MCM.app.go('market', { tab: 'offers' });
+  });
+  await page.waitForSelector('[data-act="offer-accept"]');
+  await snap('22-ofertas');
+  await click('[data-act="offer-accept"]');
+  await click('[data-act="confirm-yes"]');
+  await page.waitForTimeout(300);
+  const sold = await page.evaluate(() => MCM.app.s.market.offers[0].status);
+  if (sold !== 'accepted') throw new Error('La venta no se cerró: ' + sold);
+
+  step('finanzas y cantera');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="finance"]');
+  await page.waitForSelector('text=Reasignar presupuesto');
+  await snap('23-finanzas');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="youth"]');
+  await page.waitForSelector('text=Cantera');
+  await page.locator('.card', { hasText: 'Cantera' }).locator('.prow').first().click();
+  await click('[data-act="youth-promote"]');
+  await page.waitForSelector('text=Contrato y mercado');
+  await snap('24-canterano');
+
   step('cierre de temporada desde la interfaz');
   await page.evaluate(() => { const s = MCM.app.s; while (!MCM.career.seasonFinished(s)) MCM.career.playMatchday(s); MCM.app.go('hub', {}, { root: true }); });
   await page.waitForSelector('[data-act="end-season-ask"]');
