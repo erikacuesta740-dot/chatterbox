@@ -258,7 +258,9 @@
       ['hub', 'Continuar carrera', 'Partido y jornada', 'resume', null],
       ['new-career', 'Nueva carrera', 'Elige liga y club', 'plus', null],
       ['careers', 'Mis carreras guardadas', App.metas.length + ' en este dispositivo', 'folder', null],
-      ['club', 'Club y plantilla', 'Estadio, objetivos, historial', 'club', null],
+      ['club', 'Club y plantilla', 'Palmarés, récords, historial', 'club', null],
+      ['manager', 'Mi carrera', 'Reputación, ofertas, vitrina', 'resume', null],
+      ['awards', 'Premios', 'Balón de Oro y premios de liga', 'trophy', null],
       ['market', 'Mercado de fichajes', MCM.market.window(s).open ? 'Ventana abierta' : 'Ventana cerrada', 'transfer', 2],
       ['freeagents', 'Agentes libres', s.freeAgents.length + ' sin equipo', 'free', 2],
       ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation, 'tactics', null],
@@ -474,7 +476,7 @@
     'confirm-yes': async () => { const fn = pendingConfirm; pendingConfirm = null; closeSheet(); if (fn) await fn(); },
     tab: (d) => { App.go(d.view, {}, { root: true }); },
     nav: (d) => {
-      if (['hub', 'squad', 'calendar', 'table', 'menu', 'tactics', 'club', 'finance', 'market', 'freeagents', 'youth', 'news'].includes(d.view) && !App.s) { toast('Abre o crea una carrera primero.'); return; }
+      if (['hub', 'squad', 'calendar', 'table', 'menu', 'tactics', 'club', 'finance', 'market', 'freeagents', 'youth', 'news', 'manager', 'awards'].includes(d.view) && !App.s) { toast('Abre o crea una carrera primero.'); return; }
       App.go(d.view, {});
     },
     'new-career': () => { App.ui.newClub = null; App.go('newCareer', {}); },

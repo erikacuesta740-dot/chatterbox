@@ -193,9 +193,9 @@
     let html = '<div class="chips"><button class="chip ' + (tab === 'table' ? 'on' : '') + '" data-act="comp-tab" data-v="table">Clasificación</button><button class="chip ' + (tab === 'scorers' ? 'on' : '') + '" data-act="comp-tab" data-v="scorers">Goleadores</button><button class="chip ' + (tab === 'results' ? 'on' : '') + '" data-act="comp-tab" data-v="results">Resultados</button></div>';
     if (tab === 'scorers') {
       const top = C.topScorers(s, L.id, 20);
-      return html + '<section class="card"><h3>Máximos goleadores</h3>' + (top.length ? '<div class="table-wrap"><table class="tbl"><thead><tr><th class="l">#</th><th class="l">Jugador</th><th>PJ</th><th>G</th><th>A</th></tr></thead><tbody>' +
-        top.map((p, i) => '<tr class="' + (p.clubId === s.clubId ? 'me' : '') + '"><td class="l">' + (i + 1) + '</td><td class="l"><button data-act="player" data-id="' + p.id + '" class="row" style="gap:8px;border:0;background:none;padding:0;color:inherit">' + UI.crest(s.clubs[p.clubId], 18) + '<span class="ellipsis">' + esc(p.name) + '</span></button></td><td>' + p.stats.apps + '</td><td class="pts">' + p.stats.goals + '</td><td>' + p.stats.assists + '</td></tr>').join('') +
-        '</tbody></table></div>' : '<p class="small muted">Aún no se han marcado goles.</p>') + '<p class="small muted">Goles en todas las competiciones.</p></section>';
+      return html + '<section class="card"><h3>Máximos goleadores</h3>' + (top.length ? '<div class="table-wrap"><table class="tbl"><thead><tr><th class="l">#</th><th class="l">Jugador</th><th>PJ</th><th>G</th><th>Total</th></tr></thead><tbody>' +
+        top.map((p, i) => '<tr class="' + (p.clubId === s.clubId ? 'me' : '') + '"><td class="l">' + (i + 1) + '</td><td class="l"><button data-act="player" data-id="' + p.id + '" class="row" style="gap:8px;border:0;background:none;padding:0;color:inherit">' + UI.crest(s.clubs[p.clubId], 18) + '<span class="ellipsis">' + esc(p.name) + '</span></button></td><td>' + (p.stats.lapps != null ? p.stats.lapps : p.stats.apps) + '</td><td class="pts">' + (p.stats.lgoals != null ? p.stats.lgoals : p.stats.goals) + '</td><td>' + p.stats.goals + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<p class="small muted">Aún no se han marcado goles.</p>') + '<p class="small muted">PJ y G: liga. Última columna: goles en todas las competiciones.</p></section>';
     }
     if (tab === 'results') {
       const md = Math.max(1, Math.min(L.totalMd, App.ui.calMd || L.played || 1));

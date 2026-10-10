@@ -201,6 +201,15 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   await page.waitForSelector('text=Historial de temporadas');
   await snap('16-club-historial');
   if (!(await page.locator('text=2026/27').count())) throw new Error('Falta la temporada 2026/27 en el historial');
+  step('premios y carrera del entrenador');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="awards"]');
+  await page.waitForSelector('text=Balón de Oro 2026/27');
+  await snap('17a-premios');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="manager"]');
+  await page.waitForSelector('text=Reputación');
+  await snap('17b-mi-carrera');
 
   step('valores FC 27: jugador ficticio = No verificado');
   await click('[data-act="tab"][data-view="squad"]');

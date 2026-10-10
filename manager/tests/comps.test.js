@@ -90,3 +90,26 @@ test('una partida guardada antes del calendario por fechas se migra y sigue jugÃ
   assert.ok(Object.keys(s.comps).length >= 5, 'las competiciones empiezan la temporada siguiente');
   assert.deepStrictEqual(C.validate(s), []);
 });
+
+test('carrera del entrenador: premios, historial, despido y cambio de club', () => {
+  const s = fresh('sunderland', 'mgr1');
+  C.simulateUntil(s);
+  C.endSeason(s);
+  assert.strictEqual(s.awards.length, 1);
+  const a = s.awards[0];
+  assert.strictEqual(a.ballonDor.length, 3);
+  assert.ok(a.leagues.every((l) => l.team.length === 11 || l.team.length > 0));
+  assert.ok(Object.values(s.players).some((p) => p.career && p.career.length === 1));
+  // Despido por confianza mÃ­nima
+  s.dev.confidence = 1; s.week = 12;
+  M.mgr.checkSack(s);
+  assert.ok(s.manager.unemployed && s.manager.offers.length >= 1);
+  assert.strictEqual(C.playUserMatch(s), null, 'sin club no se juega');
+  const target = s.manager.offers[0].clubId;
+  assert.strictEqual(M.mgr.switchClub(s, target), null);
+  assert.strictEqual(s.clubId, target);
+  assert.ok(!s.manager.unemployed);
+  assert.ok(M.dev.academy(s).length >= 5, 'nueva cantera');
+  assert.ok(C.playUserMatch(s));
+  assert.deepStrictEqual(C.validate(s), []);
+});

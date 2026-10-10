@@ -179,6 +179,8 @@
     setupSeason(s);
     MCM.market.init(s);
     MCM.dev.init(s);
+    MCM.mgr.init(s);
+    C.ensureNumbers(s, s.clubId);
     const club = C.userClub(s);
     C.news(s, 'board', 'Bienvenido a ' + club.name,
       s.managerName + ' es el nuevo entrenador de ' + club.name + '. La directiva fija el objetivo de la temporada ' + s.season.label + ': ' + club.objective.text.toLowerCase() + '.');
@@ -231,6 +233,7 @@
       st.min += mins;
       st.goals += res.goalsBy[p.id] || 0;
       st.assists += res.assistsBy[p.id] || 0;
+      if (isLeague) { st.lapps = (st.lapps || 0) + 1; st.lgoals = (st.lgoals || 0) + (res.goalsBy[p.id] || 0); }
       const r = res.ratings[p.id];
       if (r) { st.rSum += r; st.rN++; p.form = Math.round((p.form * 0.6 + r * 0.4) * 100) / 100; }
       if (res.motm === p.id) st.motm++;
@@ -342,6 +345,7 @@
       };
       matchNews(s, f, comp);
       if (isLeague) streakNews(s);
+      MCM.mgr.afterMatch(s, f);
     }
     return res;
   };
@@ -432,6 +436,7 @@
       s.week = (s.week || 0) + 1;
       MCM.market.weekly(s);
       if (MCM.dev) MCM.dev.weekly(s);
+      MCM.mgr.checkSack(s);
     }
   }
 
@@ -476,6 +481,7 @@
 
   /** Avanza hasta el día del próximo partido del usuario, dejando ese partido pendiente. */
   C.playUntilUserMatch = function (s) {
+    if (s.manager && s.manager.unemployed) return null;
     const target = C.nextUserFixture(s);
     if (!target) return null;
     let guard = 0;
@@ -483,8 +489,10 @@
       const d = nextDate(s, target.date, target.date);
       if (!d || guard++ > 400) break;
       playDate(s, d, d === target.date);
+      if (s.manager && s.manager.unemployed) return null;
     }
     passDays(s, target.date);
+    if (s.manager && s.manager.unemployed) return null;
     return target;
   };
 
@@ -529,6 +537,9 @@
     return { userFixture: f };
   };
 
+  /** Se puede cambiar de club si estás sin equipo o en pretemporada (sin partidos jugados). */
+  C.canSwitchClub = (s) => (s.manager && s.manager.unemployed) || C.userFixtures(s).every((f) => !f.played);
+
   // ---------- Trofeos ----------
   C.addTrophy = function (s, clubId, name) {
     s.trophies = s.trophies || {};
@@ -544,8 +555,9 @@
     const L = s.leagues[leagueId];
     const ids = [];
     L.clubIds.forEach((cid) => s.clubs[cid].squad.forEach((pid) => ids.push(pid)));
-    return ids.map((id) => s.players[id]).filter((p) => p && p.stats.goals > 0)
-      .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists).slice(0, n || 10);
+    const lg = (p) => (p.stats.lgoals != null ? p.stats.lgoals : p.stats.goals);
+    return ids.map((id) => s.players[id]).filter((p) => p && lg(p) > 0)
+      .sort((a, b) => lg(b) - lg(a) || b.stats.assists - a.stats.assists).slice(0, n || 10);
   };
 
   function movePlayer(s, p, toClubId) {
@@ -664,6 +676,10 @@
       movements: movements.map((m) => ({ club: s.clubs[m.clubId].name, type: m.type, to: s.leagues[m.to].name })),
     });
     if (s.archive.length > 30) s.archive.length = 30;
+
+    // Premios, historial de jugadores y récords (antes de reiniciar estadísticas)
+    MCM.mgr.recordSeasonStats(s);
+    MCM.mgr.seasonAwards(s);
 
     // Economía de la temporada, cesiones que vuelven y contratos del usuario que vencen
     const finRes = MCM.market.closeSeason(s, myRow.pos, tables[userL.id].length, objectiveMet);
@@ -792,6 +808,7 @@
     setupSeason(s, prevTables, cupWinners);
     const club = C.userClub(s);
     C.news(s, 'board', 'Objetivo ' + s.season.label, 'La directiva fija el objetivo: ' + club.objective.text.toLowerCase() + '.');
+    MCM.mgr.endSeason(s, objectiveMet, myMove ? myMove.type : null, myRow.pos);
     s.updatedAt = new Date().toISOString();
     return s.history[0];
   };
@@ -808,6 +825,8 @@
     }
     MCM.market.init(s);
     if (MCM.dev) MCM.dev.init(s);
+    MCM.mgr.init(s);
+    C.ensureNumbers(s, s.clubId);
     Object.values(s.players).forEach((p) => {
       if (p.listed == null) p.listed = false;
       if (p.loan === undefined) p.loan = null;
