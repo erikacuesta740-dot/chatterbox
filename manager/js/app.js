@@ -76,8 +76,25 @@
   function paintSave() {
     const el = $('#save-dot');
     if (!el) return;
-    el.className = 'save-dot ' + (App.saveState === 'ok' ? 'ok' : App.saveState === 'err' ? 'err' : '');
-    el.textContent = App.saveState === 'saving' ? 'Guardando…' : App.saveState === 'ok' ? 'Guardado' : App.saveState === 'err' ? 'Error al guardar' : '';
+    const cl = MCM.cloud;
+    let text = App.saveState === 'saving' ? 'Guardando…' : App.saveState === 'ok' ? 'Guardado' : App.saveState === 'err' ? 'Error al guardar' : '';
+    let cls = App.saveState === 'ok' ? 'ok' : App.saveState === 'err' ? 'err' : '';
+    if (App.saveState === 'ok' && cl && cl.ready() && App.s && App.s.ownerUid === cl.uid) {
+      if (cl.error) { text = 'Error al subir'; cls = 'err'; }
+      else if (cl.dirty) { text = 'Subiendo…'; cls = ''; }
+      else text = 'Guardado online';
+    } else if (App.saveState === 'ok') text = 'Guardado en el iPhone';
+    el.className = 'save-dot ' + cls;
+    el.textContent = text;
+  }
+
+  function accountCard() {
+    const cl = MCM.cloud;
+    if (cl && cl.ready()) {
+      return '<section class="notice info"><b>Guardado online activado' + (cl.name ? ' · ' + esc(cl.name) : '') + '.</b> Tus carreras se guardan en tu cuenta de claude.ai y son privadas: nadie más puede verlas ni modificarlas. Puedes continuarlas desde otro dispositivo abriendo este mismo enlace.</section>';
+    }
+    if (cl && cl.status === 'connecting') return '<section class="notice info">Conectando con tu cuenta…</section>';
+    return '<section class="notice"><b>Guardado solo en este dispositivo.</b> ' + esc((cl && cl.reason) || 'El guardado online no está disponible aquí.') + ' Puedes exportar una copia desde Ajustes.</section>';
   }
 
   // ---------- Navegación ----------
@@ -139,10 +156,8 @@
       '<button class="btn ' + (last ? '' : 'primary') + ' block" data-act="new-career">' + icon('plus') + 'Nueva carrera</button>' +
       '<button class="btn block" data-act="nav" data-view="careers">' + icon('folder') + 'Mis carreras guardadas (' + App.metas.length + ')</button>' +
       '<button class="btn ghost block" data-act="nav" data-view="settings">' + icon('settings') + 'Ajustes</button></section>' +
-      '<section class="notice info"><b>Guardado local.</b> En esta versión las carreras se guardan solo en este navegador y dispositivo. ' +
-      'El guardado online con cuentas para dos usuarios llegará en la Etapa 4. Mientras tanto puedes exportar una copia desde Ajustes.</section>' +
-      '<section class="notice"><b>Datos de demostración.</b> Clubes y estadios reales aproximados a 2025/26; jugadores con nombres ficticios generados. ' +
-      'No son datos oficiales de EA Sports FC.</section>';
+      accountCard() +
+      '<section class="notice small"><b>Datos.</b> Clubes reales (2025/26). Primera División y Premier League con jugadores reales según conocimiento hasta mediados de 2026, no verificados; el resto, ficticios. No son datos oficiales de EA SPORTS FC.</section>';
     return { title: 'Inicio', html, tabs: false };
   };
 
@@ -161,7 +176,9 @@
       html = '<div class="card empty"><p>Todavía no tienes carreras guardadas.</p><button class="btn primary" data-act="new-career">' + icon('plus') + 'Crear la primera</button></div>';
     } else {
       html = App.metas.map((m) => '<section class="card career-card">' + careerCardInner(m) +
-        (App.s && App.s.id === m.id ? '<span class="pill solid-accent" style="justify-self:start">Abierta ahora</span>' : '') +
+        '<div class="row wrap">' + (App.s && App.s.id === m.id ? '<span class="pill solid-accent">Abierta ahora</span>' : '') +
+        (m.where === 'cloud' || m.where === 'both' ? '<span class="pill good">En tu cuenta</span>' : m.where === 'pending' ? '<span class="pill warn">Pendiente de subir</span>' : '<span class="pill mute">Solo en este dispositivo</span>') + '</div>' +
+        (m.where === 'device' && MCM.cloud.ready() ? '<button class="btn sm" data-act="adopt-career" data-id="' + esc(m.id) + '">Guardar en mi cuenta</button>' : '') +
         '<div class="btn-row"><button class="btn primary sm" data-act="open-career" data-id="' + esc(m.id) + '">Continuar</button>' +
         '<button class="btn sm" data-act="rename-career" data-id="' + esc(m.id) + '">Renombrar</button>' +
         '<button class="btn sm ghost" data-act="delete-career" data-id="' + esc(m.id) + '" style="color:var(--bad)">Eliminar</button></div></section>').join('') +
@@ -517,11 +534,20 @@
 
   VIEWS.settings = function () {
     const prov = MCM.store.provider;
-    let html = '<section class="card"><h3>Perfil</h3><form class="stack" data-submit="profile"><label class="field" for="st-profile">Nombre del propietario de las carreras nuevas<input class="input" id="st-profile" name="profile" maxlength="30" value="' + esc(App.profile) + '" placeholder="Por ejemplo: Erika"></label>' +
-      '<button class="btn sm" type="submit">Guardar perfil</button></form><p class="small muted">En la Etapa 1 el perfil solo etiqueta las carreras. Las cuentas con contraseña y la privacidad real entre usuarios llegan en la Etapa 4.</p></section>';
+    const cl = MCM.cloud;
+    let html = '<section class="card"><h3>Cuenta y guardado online</h3>' + accountCard() +
+      (cl.ready() ? '<p class="small">Estado: ' + (cl.error ? '<b style="color:var(--bad)">' + esc(cl.error) + '</b>' : cl.dirty ? 'subiendo cambios…' : 'todo sincronizado') + (cl.lastSync ? ' · última subida ' + esc(new Date(cl.lastSync).toLocaleTimeString('es-ES')) : '') + '.</p>' +
+        '<button class="btn sm" data-act="cloud-sync">Sincronizar ahora</button>' : '') +
+      '<details class="small"><summary><b>Cómo jugar con tu hermano</b></summary><ol class="stack" style="padding-left:18px;margin:8px 0 0">' +
+      '<li>Abre este juego en claude.ai y pulsa <b>Compartir</b>.</li>' +
+      '<li>Invítale por correo como <b>Editor</b> (no actives el enlace público: con él, los invitados de fuera no pueden guardar).</li>' +
+      '<li>Él necesita su propia cuenta de claude.ai (la gratuita sirve) y abrir el enlace con su sesión iniciada.</li>' +
+      '<li>Cada uno ve y guarda solo sus propias carreras; la plataforma impide leer o modificar las del otro.</li></ol></details></section>' +
+      '<section class="card"><h3>Perfil local</h3><form class="stack" data-submit="profile"><label class="field" for="st-profile">Nombre para las carreras sin cuenta<input class="input" id="st-profile" name="profile" maxlength="30" value="' + esc(App.profile) + '" placeholder="Por ejemplo: Erika"></label>' +
+      '<button class="btn sm" type="submit">Guardar perfil</button></form><p class="small muted">Solo se usa cuando no hay guardado online.</p></section>';
     html += '<section class="card"><h3>Tema</h3><div class="chips">' + [['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map((t) => '<button class="chip ' + ((App.theme || 'system') === t[0] ? 'on' : '') + '" data-act="theme" data-v="' + t[0] + '">' + t[1] + '</button>').join('') + '</div></section>';
-    html += '<section class="card"><h3>Guardado</h3><p>Ubicación: <b>' + esc(prov ? prov.label : '—') + '</b></p>' +
-      '<p class="small">Las carreras se guardan automáticamente después de cada acción. Este guardado es <b>local</b>: si borras los datos del navegador o cambias de dispositivo, no estarán. Para no perder una carrera, exporta una copia.</p>' +
+    html += '<section class="card"><h3>Copia en el dispositivo</h3><p>Ubicación: <b>' + esc(prov ? prov.label : '—') + '</b></p>' +
+      '<p class="small">Cada acción se guarda al momento en este dispositivo' + (cl.ready() ? ' y se sube a tu cuenta en segundo plano' : '') + '. ' + (cl.ready() ? '' : 'Si borras los datos del navegador o cambias de dispositivo, no estarán: exporta una copia para no perderlas.') + '</p>' +
       (prov && prov.kind === 'memory' ? '<p class="notice">Este navegador no permite guardar datos. La partida se perderá al cerrar la página.</p>' : '') + '</section>';
     if (App.s) {
       html += '<section class="card"><h3>Exportar carrera abierta</h3><p class="small muted">Genera una copia en texto de «' + esc(App.s.name) + '». Guárdala en Notas o Archivos del iPhone para restaurarla después.</p>' +
@@ -555,13 +581,7 @@
       '<div class="btn-row"><button class="btn sm" data-act="dataset-import-text">Importar base</button>' + (cd ? '<button class="btn sm ghost" data-act="dataset-clear" style="color:var(--bad)">Quitar base</button>' : '') + '</div></section>';
     html += '<section class="card"><h3>Datos del juego</h3><p class="small">' + esc(MCM.DATA.datasetInfo.name) + '. ' + esc(MCM.DATA.datasetInfo.note) + '</p>' +
       '<p class="small muted">' + MCM.DATA.leagues.length + ' ligas · ' + MCM.DATA.leagues.reduce((n, l) => n + l.clubs.length, 0) + ' clubes. La estructura admite importar bases de datos legítimas (formato en docs/DATA_FORMAT.md).</p></section>';
-    html += '<section class="card"><h3>Hoja de ruta</h3><div class="stack small">' +
-      '<div><span class="pill good">Hecho</span> Etapa 1 · Base jugable: carreras, clubes, calendario, simulación, clasificación, guardado local.</div>' +
-      '<div><span class="pill mute">Próximo</span> Etapa 2 · Fichajes, agentes libres, contratos y presupuesto.</div>' +
-      '<div><span class="pill mute">Después</span> Etapa 3 · Lesiones, moral y cantera en profundidad; noticias y objetivos.</div>' +
-      '<div><span class="pill mute">Después</span> Etapa 4 · Cuentas y guardado online privado para dos usuarios.</div>' +
-      '<div><span class="pill mute">Después</span> Etapa 5 · Datos ampliados, pruebas, publicación e instalación en el iPhone.</div></div></section>';
-    return { title: 'Ajustes', sub: 'Etapa 1 · registro de valores FC 27', html, tabs: !!App.s };
+    return { title: 'Ajustes', sub: 'Modo Carrera Manager', html, tabs: !!App.s };
   };
 
   // Dentro de un visor incrustado (vista previa) las descargas están bloqueadas.
@@ -572,6 +592,7 @@
 
   async function openCareer(id) {
     await busy('Cargando carrera…');
+    try { await MCM.cloud.flush(); } catch (e) { /* se reintentará */ }
     try {
       const s = await MCM.store.load(id);
       if (!s) throw new Error('No se encontró la carrera.');
@@ -612,7 +633,7 @@
       const m = App.metas.find((x) => x.id === d.id);
       confirmSheet({
         title: 'Eliminar «' + (m ? m.name : '') + '»',
-        body: 'Se borrará esta carrera de este dispositivo y no se podrá recuperar (salvo que tengas una copia exportada). Las demás carreras no se verán afectadas.',
+        body: 'Se borrará esta carrera de este dispositivo' + (MCM.cloud.ready() ? ' y de tu cuenta online' : '') + ' y no se podrá recuperar (salvo que tengas una copia exportada). Las demás carreras no se verán afectadas.',
         yes: 'Eliminar definitivamente',
         danger: true,
         onYes: async () => {
@@ -751,6 +772,16 @@
       toast('Si no se descarga, usa «Copiar al portapapeles»');
     },
     'import-text': () => importCareer($('#import-text').value),
+    'adopt-career': async (d) => {
+      await busy('Subiendo a tu cuenta…');
+      try { await MCM.store.adopt(d.id); await refreshMetas(); toast('Carrera guardada en tu cuenta'); } finally { unbusy(); }
+      App.render();
+    },
+    'cloud-sync': async () => {
+      await busy('Sincronizando…');
+      try { if (App.s) await MCM.store.save(App.s); await MCM.cloud.flush(); await refreshMetas(); toast(MCM.cloud.error ? MCM.cloud.error : 'Sincronizado'); } finally { unbusy(); }
+      App.render();
+    },
     'values-import-text': () => importValues($('#values-text').value),
     'values-clear': () => confirmSheet({
       title: 'Vaciar registro de valores FC 27',
@@ -828,7 +859,7 @@
     'create-career': async (fd) => {
       await busy('Creando carrera…');
       try {
-        const s = C.create({ dataset: activeDataset(), clubId: App.ui.newClub, name: fd.get('name'), managerName: fd.get('manager'), owner: App.profile || 'Jugador local' });
+        const s = C.create({ dataset: activeDataset(), clubId: App.ui.newClub, name: fd.get('name'), managerName: fd.get('manager'), owner: (MCM.cloud.ready() && MCM.cloud.name) || App.profile || 'Jugador local' });
         App.s = s;
         await persist();
         await refreshMetas();
@@ -940,5 +971,11 @@
     } catch (e) { console.error(e); }
     App.view = 'start';
     App.render(true);
+    MCM.cloud.onChange(paintSave);
+    MCM.cloud.init().then(async () => {
+      if (!MCM.cloud.ready()) { if (!App.s) App.render(); return; }
+      await refreshMetas();
+      if (!App.s && (App.view === 'start' || App.view === 'careers')) App.render();
+    });
   };
 })(globalThis.MCM = globalThis.MCM || {});

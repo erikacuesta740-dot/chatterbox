@@ -124,18 +124,72 @@
   Store.useProvider = (p) => { Store.provider = p; };
   Store.MemoryProvider = MemoryProvider;
 
+  // ---- Lista, carga, guardado y borrado: caché local + nube privada cuando está disponible ----
+  const Cloud = () => MCM.cloud;
+  const cloudOn = () => !!(Cloud() && Cloud().ready());
+
   Store.list = async () => {
-    const all = await Store.provider.list();
-    return (all || []).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    const local = (await Store.provider.list()) || [];
+    let out;
+    if (cloudOn()) {
+      const uid = Cloud().uid;
+      let remote = [];
+      try { remote = await Cloud().list(); } catch (e) { remote = []; Store.cloudListError = true; }
+      const byId = {};
+      local.filter((m) => !m.ownerUid || m.ownerUid === uid).forEach((m) => {
+        byId[m.id] = Object.assign({}, m, { where: m.ownerUid ? 'pending' : 'device' });
+      });
+      remote.forEach((m) => {
+        const l = byId[m.id];
+        if (!l) byId[m.id] = Object.assign({}, m, { where: 'cloud' });
+        else byId[m.id] = Object.assign({}, String(l.updatedAt) >= String(m.updatedAt) ? l : m, { where: 'both', cloudUpdatedAt: m.updatedAt });
+      });
+      out = Object.values(byId);
+    } else {
+      out = local.map((m) => Object.assign({}, m, { where: 'device' }));
+    }
+    return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   };
-  Store.load = (id) => Store.provider.load(id);
+
+  Store.load = async (id) => {
+    const local = await Store.provider.load(id);
+    if (cloudOn()) {
+      const metas = await Store.list();
+      const m = metas.find((x) => x.id === id);
+      const cloudNewer = m && (m.where === 'cloud' || (m.where === 'both' && (!local || String(m.cloudUpdatedAt) > String(local.updatedAt))));
+      if (cloudNewer) {
+        const remote = await Cloud().load(id);
+        if (remote) { await Store.provider.save(remote, MCM.career.meta(remote)); return remote; }
+      }
+    }
+    return local;
+  };
+
   Store.save = async (state) => {
     state.updatedAt = new Date().toISOString();
+    if (cloudOn() && !state.ownerUid) state.ownerUid = Cloud().uid;
     await Store.provider.save(state, MCM.career.meta(state));
+    if (cloudOn() && state.ownerUid === Cloud().uid) Cloud().schedule(state);
   };
-  Store.remove = (id) => Store.provider.remove(id);
-  Store.rename = async (id, name) => {
+
+  Store.remove = async (id) => {
+    await Store.provider.remove(id);
+    if (cloudOn()) await Cloud().remove(id);
+  };
+
+  /** Una carrera guardada antes de tener cuenta pasa a la cuenta actual y se sube. */
+  Store.adopt = async (id) => {
     const s = await Store.provider.load(id);
+    if (!s || !cloudOn()) return null;
+    s.ownerUid = Cloud().uid;
+    if (Cloud().name) s.owner = Cloud().name;
+    await Store.save(s);
+    await Cloud().flush();
+    return s;
+  };
+
+  Store.rename = async (id, name) => {
+    const s = await Store.load(id);
     if (!s) throw new Error('Carrera no encontrada');
     s.name = name;
     await Store.save(s);

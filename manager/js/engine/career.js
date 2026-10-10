@@ -621,7 +621,7 @@
 
   // ---------- Metadatos y validación ----------
   C.meta = (s) => ({
-    id: s.id, name: s.name, owner: s.owner, managerName: s.managerName, clubId: s.clubId,
+    id: s.id, name: s.name, owner: s.owner, ownerUid: s.ownerUid || null, managerName: s.managerName, clubId: s.clubId,
     clubName: s.clubs[s.clubId].name, colors: s.clubs[s.clubId].colors, short: s.clubs[s.clubId].short,
     leagueName: C.userLeague(s).name, season: s.season.label, md: C.userLeague(s).played, totalMd: C.userLeague(s).totalMd,
     createdAt: s.createdAt, updatedAt: s.updatedAt, isDemo: s.dataset.isDemo,
