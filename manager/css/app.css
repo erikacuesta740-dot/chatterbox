@@ -111,7 +111,9 @@ main.no-tabs { padding-bottom: 40px; }
 /* ---------- Bloques ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); display: grid; gap: 12px; min-width: 0; }
 .card.flat { box-shadow: none; }
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.section-head > .pill { white-space: normal; }
+.card > * { min-width: 0; }
 .row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .row.wrap { flex-wrap: wrap; }
 .grow { flex: 1; min-width: 0; }

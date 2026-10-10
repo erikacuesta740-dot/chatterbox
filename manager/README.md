@@ -1,80 +1,94 @@
 # Modo Carrera Manager
 
 Simulador de gestión futbolística pensado para jugar desde el iPhone. Eres entrenador y director
-deportivo: eliges el once, la táctica y gestionas la temporada; los partidos se simulan.
+deportivo: eliges el once y la táctica, fichas, vendes, renuevas, cuidas la cantera y gestionas el dinero;
+los partidos se simulan.
 
-> Los clubes y estadios son reales (aproximados a 2025/26). Por defecto, **Primera División y Premier League
+> **Datos.** Los clubes y estadios son reales (temporada 2025/26). Por defecto, **Primera División y Premier League
 > tienen jugadores reales** (861) según el conocimiento del asistente hasta mediados de 2026, **no verificados**:
 > medias y potenciales son estimaciones, no las de FC 27, y puede faltar algún fichaje reciente. El resto de ligas
-> usa jugadores ficticios, y los huecos de las plantillas reales se completan con ficticios marcados como tales.
-> También se puede elegir la «Demo ficticia». Nada de esto son datos oficiales de EA SPORTS FC.
+> y los agentes libres usan jugadores ficticios, y los huecos de las plantillas reales se completan con ficticios
+> marcados como tales. **No hay valores de mercado de FC 27** hasta que se importen de una fuente (ver más abajo).
+> Nada de esto son datos oficiales de EA SPORTS FC.
 
-## Estado: Etapa 1 (base jugable)
+## Qué incluye
 
-Funciona:
+**Carreras y partidos**
+- Carreras independientes: crear, continuar, renombrar y eliminar (con confirmación).
+- 7 ligas y 142 clubes, calendario a doble vuelta, simulación con crónica y estadísticas, clasificación y goleadores.
+- Tácticas (7 formaciones, mentalidad, presión, ritmo), once manual o automático con avisos.
+- Lesiones, cansancio, sanciones por tarjetas; fin de temporada con ascensos y descensos e historial.
 
-- Menú principal con las 13 secciones y navegación con pestañas para el pulgar.
-- Carreras independientes: crear, continuar, renombrar y eliminar (con confirmación). Crear una carrera nunca modifica otra.
-- 7 ligas y 142 clubes: Primera y Segunda (España), Premier League y Championship (Inglaterra), Serie A, Bundesliga y Ligue 1.
-- Plantillas de 23–24 jugadores con media, potencial, atributos, valor, salario (€/semana), contrato, forma física, moral y forma.
-- Calendario a doble vuelta sin partidos duplicados, con fechas.
-- Simulación de partidos: marcador, goles con minuto y asistente, posesión, tiros, tiros a puerta, xG, córners, faltas, tarjetas,
-  lesiones, cambios, valoraciones, mejor jugador y crónica.
-- Simular solo tu partido o la jornada entera (con confirmación). El resto de ligas avanza a la vez.
-- Clasificación con zonas, forma y goleadores de todas las ligas.
-- Tácticas: 7 formaciones, once manual o automático, mentalidad, presión y ritmo (influyen en la simulación), avisos de jugadores fuera de posición, lesionados, sancionados o cansados.
-- Lesiones, cansancio, moral, acumulación de tarjetas y sanciones (versión básica).
-- Fin de temporada: campeón, historial, ascensos y descensos (España e Inglaterra), evolución de jugadores según edad, potencial y minutos, retiradas, canteranos y nueva temporada.
-- Noticias generadas a partir de lo que pasa en tu carrera.
-- Guardado automático **local** (IndexedDB) y exportación/importación de una carrera como texto.
-- Registro de **valores de mercado de FC 27** con procedencia (fuente, fecha, estado de verificación), importable en JSON o CSV,
-  separado del valor estimado del juego. **Ahora mismo no incluye ningún valor de FC 27** (ver `docs/FC27_VALUES.md`):
-  todos los jugadores aparecen como «No verificado».
-- Importación de bases de plantillas reales (JSON, ver `docs/DATA_FORMAT.md`) para crear carreras con ellas.
+**Mercado y contratos (Etapa 2)**
+- Ventanas de verano (hasta el 1 de septiembre) e invierno (1 de enero – 2 de febrero). Fuera de ellas solo agentes libres y renovaciones.
+- Búsqueda por nombre, posición, liga, club, nacionalidad, edad, media, potencial y precio.
+- Negociación en dos fases: con el club (traspaso o cesión, con contraofertas y paciencia) y con el jugador (salario, años y prima).
+- Ofertas recibidas por tus jugadores (aceptar, rechazar o pedir más), lista de transferibles, cesiones, rescisiones y renovaciones.
+- Contratos que vencen: si no renuevas, el jugador se va libre en junio.
+- Presupuesto de fichajes y presupuesto salarial (euros por semana), reasignables. Ninguna operación puede superarlos.
+- Taquilla, derechos de TV, premios, gastos y balance por temporada. La IA también ficha entre clubes.
 
-Pendiente (próximas etapas):
+**Profundidad (Etapa 3)**
+- Cantera con hornada anual, promoción al primer equipo y liberación.
+- Progresión durante la temporada según edad, potencial y minutos; consolidación al final de la temporada.
+- Moral según los minutos que espera cada rol; los descontentos piden salir.
+- Confianza de la directiva, rumores y noticias generadas a partir de lo que pasa en la partida.
 
-- Etapa 2: ofertas, negociación, ventas, cesiones, agentes libres firmables, renovaciones y finanzas detalladas.
-  (Hoy el mercado y los agentes libres se pueden consultar, pero no fichar.)
-- Etapa 3: cantera y moral en profundidad, objetivos y noticias más ricas, equilibrio a largo plazo.
-- Etapa 4: cuentas, guardado online y privacidad por usuario.
-- Etapa 5: datos ampliados, publicación definitiva e instalación en el iPhone (PWA).
+**Cuentas y guardado online (Etapa 4)**
+- Dentro de claude.ai, cada persona guarda sus carreras en su propio espacio privado de la base de datos del juego:
+  nadie más puede leerlas ni modificarlas (ni siquiera el propietario del juego).
+- Se continúa desde cualquier dispositivo abriendo el mismo enlace con la sesión iniciada.
+- Copia local en el dispositivo (funciona sin conexión) y subida en segundo plano. Las carreras creadas antes se pueden subir a tu cuenta.
+
+**Instalación (Etapa 5)**
+- PWA instalable con icono y funcionamiento sin conexión cuando se aloja en su propia web (por ejemplo, GitHub Pages).
+
+## Jugar con tu hermano
+
+1. Abre el juego en claude.ai y pulsa **Compartir**.
+2. Invítale por correo como **Editor**. No actives el enlace público: con él, los invitados de fuera de tu organización pierden el permiso de escritura.
+3. Él necesita una cuenta de claude.ai y abrir el enlace con su sesión iniciada.
+
+No hace falta ningún servicio adicional ni ningún pago aparte de las cuentas de claude.ai.
+
+## Instalar en el iPhone
+
+- **Desde claude.ai** (recomendado para el guardado online): abre el enlace del juego en la app de Claude.
+- **Como app independiente**: cuando el código esté en GitHub, activa Pages (Settings → Pages → Source: «GitHub Actions»);
+  el flujo `.github/workflows/modo-carrera-pages.yml` publica la carpeta `manager/`. Abre la web en Safari →
+  Compartir → «Añadir a pantalla de inicio». Esa versión guarda las carreras **solo en el iPhone** (el guardado online
+  depende de claude.ai).
+
+## Datos reales: cómo importarlos
+
+1. **Plantillas** (JSON): ligas, clubes y jugadores con `id`, nombre, posición, edad, media y potencial
+   (formato en `docs/DATA_FORMAT.md`). Se importan en Ajustes › Base de datos de plantillas y se eligen al crear una carrera.
+2. **Valores de mercado FC 27** (CSV o JSON): `id,name,club,value,currency,edition,source,sourceUrl,retrievedAt,verified`
+   (ver `docs/FC27_VALUES.md`). Solo se aceptan datos de FC 27; nunca se redondean ni se rellenan con estimaciones.
 
 ## Arquitectura
 
-Web estática sin dependencias ni compilación: HTML + CSS + JavaScript. Se puede alojar en cualquier
-servidor de archivos estáticos y editar desde cualquier sitio.
+Web estática sin dependencias ni compilación.
 
 ```
-index.html            Página principal
-css/app.css           Estilos (móvil primero, tema claro y oscuro)
-js/core/util.js       Azar con semilla, formatos
-js/data/              Ligas y clubes, plantillas reales (no verificadas), nombres ficticios,
-                      registro de valores FC 27, generador de mundo
-js/engine/            Jugadores, alineaciones, calendario, simulación, carrera
-js/store/storage.js   Guardado (IndexedDB → localStorage → memoria); interfaz lista para la nube
-js/ui/components.js   Escudos genéricos, insignias, barras, filas
-js/app.js             Pantallas y acciones
-tests/                Pruebas del motor (node:test) y de extremo a extremo (Playwright)
-tools/build-single.js Empaqueta todo en un único HTML
+index.html, manifest.webmanifest, sw.js, icons/   Página, instalación y modo sin conexión
+css/app.css                                       Estilos (móvil primero, tema claro y oscuro)
+js/core/util.js                                   Azar con semilla, formatos
+js/data/                                          Ligas, plantillas reales, nombres, valores FC 27, generador
+js/engine/                                        Jugadores, alineaciones, calendario, partidos, mercado, cantera, carrera
+js/store/storage.js, cloud.js                     Guardado local (IndexedDB) y online privado (claude.ai)
+js/ui/                                            Componentes y pantallas de mercado, finanzas y cantera
+js/app.js                                         Navegación y pantallas principales
+tests/                                            Pruebas del motor, del navegador y del guardado online
+tools/build-single.js                             Empaqueta todo en un único HTML
 ```
-
-Cada partido usa una semilla derivada de la carrera, así que el mismo estado produce el mismo resultado.
 
 ## Pruebas
 
 ```
-npm test          # motor: calendario, simulación, independencia, sanciones, 3 temporadas
-npm run e2e       # navegador con tamaño iPhone (requiere servidor: npm run serve)
-npm run build     # genera dist/modo-carrera-manager.html (un único archivo)
+npm test                      # 21 pruebas: calendario, simulación, mercado, contratos, cantera, valores FC 27...
+npm run serve                 # servidor local en :8765
+node tests/e2e.js             # recorrido completo en un navegador con tamaño de iPhone
+node tests/cloud-e2e.js       # guardado online, otro dispositivo y privacidad entre usuarios (base simulada)
+npm run build                 # dist/modo-carrera-manager.html (archivo único)
 ```
-
-## Datos reales: cómo pasarlos
-
-Hay dos archivos posibles (ver `docs/DATA_FORMAT.md` y `docs/FC27_VALUES.md`):
-
-1. **Plantillas** (JSON): ligas, clubes y jugadores con `id`, nombre, posición, edad, media, potencial.
-   Se importa en Ajustes › Base de datos de plantillas y se elige al crear una carrera.
-2. **Valores de mercado FC 27** (CSV o JSON): `id,name,club,value,currency,edition,source,sourceUrl,retrievedAt,verified`.
-   Se importa en Ajustes › Valores de mercado FC 27. Se enlaza por `id` o, si no coincide, por nombre y club exactos,
-   así que también funciona con los jugadores reales incluidos (por ejemplo «Kylian Mbappé» + «Real Madrid»).

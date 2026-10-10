@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="0" fill="#0c1220"/>
+  <rect x="0" y="0" width="512" height="512" fill="#123d2a" opacity="0.55"/>
+  <g stroke="#ffffff" stroke-opacity="0.18" stroke-width="6" fill="none">
+    <circle cx="256" cy="256" r="120"/><path d="M0 256h512"/>
+  </g>
+  <path d="M256 70 L410 124 V248 C410 352 343 420 256 452 C169 420 102 352 102 248 V124 Z" fill="#f2b33d"/>
+  <path d="M256 70 L410 124 V176 H102 V124 Z" fill="#0c1220" opacity="0.18"/>
+  <text x="256" y="330" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, Arial, sans-serif" font-weight="700" font-size="150" fill="#0c1220">MC</text>
+</svg>

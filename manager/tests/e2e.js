@@ -14,7 +14,14 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push('console: ' + m.text()); });
-  const snap = async (name) => { if (shots) await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: false }); };
+  const snap = async (name) => {
+    const wide = await page.evaluate(() => {
+      const w = document.documentElement.clientWidth;
+      return Array.from(document.querySelectorAll('main .card, main section')).filter((el) => el.getBoundingClientRect().right > w + 1 && !el.closest('.table-wrap, .chips')).length;
+    });
+    if (wide) errors.push('Desbordamiento horizontal en ' + name + ' (' + wide + ' bloques)');
+    if (shots) await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: false });
+  };
   const click = async (sel) => { await page.locator(sel).first().click(); await page.waitForTimeout(120); };
   const step = (t) => console.log('·', t);
 
