@@ -1,0 +1,19 @@
+{
+  "info": { "id": "prueba", "name": "Base de PRUEBA (datos inventados para tests)" },
+  "leagues": [
+    {
+      "id": "TST1", "name": "Liga de Prueba", "country": "Pruebalandia", "nat": "ESP", "tier": 1, "relegate": 0, "euro": 1, "ucl": 1, "wealth": 1,
+      "clubs": [
+        { "name": "Club Prueba Norte", "short": "NOR", "rep": 80, "stadium": "Estadio Ficticio", "colors": ["#ffffff", "#003399"],
+          "players": [
+            { "id": "TEST-0001", "name": "Jugador Prueba Uno", "age": 27, "nat": "ESP", "pos": "DC", "ovr": 84, "pot": 86, "wage": 90000, "contractEnd": 2029 },
+            { "id": "TEST-0002", "name": "Jugador Prueba Dos", "age": 22, "nat": "FRA", "pos": "MC", "ovr": 78, "pot": 85, "wage": 40000, "contractEnd": 2028 },
+            { "id": "TEST-0003", "name": "Jugador Prueba Tres", "age": 30, "nat": "ITA", "pos": "POR", "ovr": 80, "pot": 80, "wage": 50000, "contractEnd": 2027 }
+          ] },
+        { "name": "Club Prueba Sur", "short": "SUR", "rep": 70, "colors": ["#cc0000", "#ffffff"] },
+        { "name": "Club Prueba Este", "short": "EST", "rep": 66, "colors": ["#00aa55", "#ffffff"] },
+        { "name": "Club Prueba Oeste", "short": "OES", "rep": 60, "colors": ["#222222", "#ffcc00"] }
+      ]
+    }
+  ]
+}

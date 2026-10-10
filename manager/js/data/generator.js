@@ -51,6 +51,7 @@
     const age = opts.age;
     const p = {
       id: 'p' + ctx.nextId++,
+      extId: opts.extId || null, // identificador de la base importada (para enlazar valores FC 27)
       name: opts.name || makeName(rng, nat, ctx.usedNames),
       age,
       nat,
@@ -130,9 +131,8 @@
       const p = G.createPlayer(ctx, {
         name: raw.name, nat: raw.nat, pos: raw.pos, alt: raw.alt, ovr: raw.ovr, pot: raw.pot, age: raw.age,
         attrs: raw.attrs, wage: raw.wage, contractEnd: raw.contractEnd, clubId: club.id, leagueNat: league.nat,
-        rep: club.rep, wealth: club.wealth, real: !!raw.real,
+        rep: club.rep, wealth: club.wealth, real: true, extId: raw.id != null ? String(raw.id) : null,
       });
-      if (raw.value) p.value = raw.value;
       ctx.players[p.id] = p;
       return p.id;
     });
@@ -196,6 +196,47 @@
       freeAgents.push(p.id);
     }
     return { leagues, clubs, players: ctx.players, freeAgents, nextId: ctx.nextId };
+  };
+
+  /* Comprueba un dataset importado antes de usarlo. Devuelve una lista de errores (vacía si es válido). */
+  G.validateDataset = function (d) {
+    const errors = [];
+    if (!d || !Array.isArray(d.leagues) || !d.leagues.length) return ['Falta la lista «leagues».'];
+    const leagueIds = new Set();
+    const clubIds = new Set();
+    const extIds = new Set();
+    d.leagues.forEach((L, li) => {
+      const where = 'Liga ' + (L && L.id ? L.id : li + 1);
+      if (!L || !L.id || !L.name) { errors.push(where + ': falta id o name.'); return; }
+      if (leagueIds.has(L.id)) errors.push(where + ': id repetido.');
+      leagueIds.add(L.id);
+      if (!Array.isArray(L.clubs) || L.clubs.length < 2) { errors.push(where + ': necesita al menos 2 clubes.'); return; }
+      L.clubs.forEach((c, ci) => {
+        const name = Array.isArray(c) ? c[0] : c && c.name;
+        const rep = Array.isArray(c) ? c[2] : c && c.rep;
+        if (!name) { errors.push(where + ', club ' + (ci + 1) + ': sin nombre.'); return; }
+        const id = (c && c.id) || U.slug(name);
+        if (clubIds.has(id)) errors.push('Club repetido: ' + name);
+        clubIds.add(id);
+        if (!(rep >= 1 && rep <= 100)) errors.push(name + ': «rep» debe estar entre 1 y 100.');
+        ((c && c.players) || []).forEach((pl, pi) => {
+          const w = name + ', jugador ' + (pi + 1) + (pl && pl.name ? ' (' + pl.name + ')' : '');
+          if (!pl || !pl.name) errors.push(w + ': sin nombre.');
+          if (!P.POSITIONS[pl && pl.pos]) errors.push(w + ': posición no válida.');
+          if (!(pl && pl.ovr >= 30 && pl.ovr <= 99)) errors.push(w + ': media no válida.');
+          if (!(pl && pl.age >= 15 && pl.age <= 45)) errors.push(w + ': edad no válida.');
+          if (pl && pl.id != null) {
+            if (extIds.has(String(pl.id))) errors.push(w + ': identificador repetido ' + pl.id + '.');
+            extIds.add(String(pl.id));
+          }
+        });
+      });
+    });
+    d.leagues.forEach((L) => {
+      if (L.lower && !leagueIds.has(L.lower)) errors.push('Liga ' + L.id + ': «lower» apunta a una liga inexistente.');
+      if (L.upper && !leagueIds.has(L.upper)) errors.push('Liga ' + L.id + ': «upper» apunta a una liga inexistente.');
+    });
+    return errors.slice(0, 30);
   };
 
   G.defaultDataset = () => ({ info: MCM.DATA.datasetInfo, leagues: MCM.DATA.leagues });

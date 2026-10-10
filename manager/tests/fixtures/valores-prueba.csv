@@ -1,0 +1,5 @@
+id,name,club,value,currency,edition,source,sourceUrl,retrievedAt,verified
+TEST-0001,Jugador Prueba Uno,Club Prueba Norte,"85.000.000 €",EUR,FC 27,PRUEBA (no es un dato real),,2026-10-10,true
+TEST-0002,Jugador Prueba Dos,Club Prueba Norte,1234567,EUR,FC 27,PRUEBA (no es un dato real),,2026-10-10,false
+TEST-0003,Jugador Prueba Tres,Club Prueba Norte,9000000,EUR,FC 26,PRUEBA (no es un dato real),,2026-10-10,true
+TEST-0004,Sin Valor,Club Prueba Norte,,EUR,FC 27,PRUEBA (no es un dato real),,2026-10-10,true

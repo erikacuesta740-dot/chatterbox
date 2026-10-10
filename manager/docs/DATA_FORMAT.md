@@ -18,8 +18,8 @@ Para usar datos legítimos (por ejemplo, una base con licencia o creada por ti),
           "name": "Club Ejemplo", "short": "EJE", "rep": 75, "stadium": "Estadio Ejemplo",
           "colors": ["#ffffff", "#003399"], "budget": 25000000,
           "players": [
-            { "name": "Nombre Apellido", "age": 24, "nat": "ESP", "pos": "MC", "alt": ["MCO"],
-              "ovr": 78, "pot": 84, "wage": 40000, "contractEnd": 2029, "value": 30000000, "real": true }
+            { "id": "239085", "name": "Nombre Apellido", "age": 24, "nat": "ESP", "pos": "MC", "alt": ["MCO"],
+              "ovr": 78, "pot": 84, "wage": 40000, "contractEnd": 2029 }
           ]
         }
       ]
@@ -33,6 +33,8 @@ Para usar datos legítimos (por ejemplo, una base con licencia o creada por ti),
 Reglas:
 
 - Posiciones válidas: `POR, DFC, LD, LI, MCD, MC, MCO, MD, MI, ED, EI, DC`.
+- `id` del jugador es su identificador único en tu base (se conserva como `extId` y sirve para enlazar valores FC 27).
+- El valor de mercado de FC 27 **no va aquí**: se importa aparte, con su fuente (ver FC27_VALUES.md).
 - `wage` es **euros por semana** (la única unidad de salario del juego).
 - `contractEnd` es el año en que termina el contrato (30 de junio).
 - `attrs` es opcional. Para jugadores de campo: `pac, sho, pas, dri, def, phy`; para porteros: `div, han, kic, ref, spd, pos`.
@@ -41,4 +43,4 @@ Reglas:
 - Para que haya ascensos y descensos, la liga superior debe indicar `lower` y `relegate`, y la inferior `upper` y `promote`.
 - Un filial se marca con `"reserveOf": "<id del primer equipo>"` y nunca asciende a la liga de su primer equipo.
 
-La pantalla para importar un dataset completo desde el móvil está prevista para la Etapa 5.
+Se importa desde **Ajustes › Base de datos de plantillas** y se elige en **Nueva carrera**. Las carreras existentes no cambian.

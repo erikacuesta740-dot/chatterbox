@@ -125,6 +125,59 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   await snap('16-club-historial');
   if (!(await page.locator('text=2026/27').count())) throw new Error('Falta la temporada 2026/27 en el historial');
 
+  step('valores FC 27: jugador ficticio = No verificado');
+  await click('[data-act="tab"][data-view="squad"]');
+  await click('.prow[data-act="player"]');
+  await page.waitForSelector('text=Valor de mercado FC 27');
+  if (!(await page.locator('.pill', { hasText: 'No verificado' }).count())) throw new Error('El jugador ficticio debería mostrar No verificado');
+
+  step('importar base de plantillas y valores FC 27');
+  const fs = require('fs');
+  const fx = (f) => fs.readFileSync(path.join(__dirname, 'fixtures', f), 'utf8');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="settings"]');
+  await page.fill('#dataset-text', fx('dataset-prueba.json'));
+  await click('[data-act="dataset-import-text"]');
+  await page.waitForSelector('text=Quitar base');
+  await page.fill('#values-text', fx('valores-prueba.csv'));
+  await click('[data-act="values-import-text"]');
+  await page.waitForSelector('text=Importación de valores FC 27');
+  await snap('17-informe-importacion');
+  const rep = await page.locator('.sheet').innerText();
+  if (!/NUEVOS\s*2/i.test(rep) || !/RECHAZADOS\s*2/i.test(rep)) throw new Error('Informe inesperado: ' + rep);
+  await click('.sheet [data-act="sheet-close"]');
+
+  step('carrera con base importada y ficha con valor exacto');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="new-career"]');
+  await click('[data-act="new-dataset"][data-v="custom"]');
+  await click('[data-act="new-club"][data-id="club-prueba-norte"]');
+  await click('#new-form button[type=submit]');
+  await page.waitForSelector('[data-act="sim-match"]');
+  await click('[data-act="sim-match"]');
+  await page.waitForSelector('text=Estadísticas');
+  const openUno = async () => {
+    await click('[data-act="tab"][data-view="squad"]');
+    await page.locator('.prow', { hasText: 'Jugador Prueba Uno' }).click();
+    await page.waitForSelector('text=Valor de mercado FC 27');
+  };
+  await openUno();
+  await snap('18-ficha-fc27');
+  const card = await page.locator('section.card', { hasText: 'Valor de mercado FC 27' }).innerText();
+  for (const t of ['85.000.000 €', 'Verificado según la fuente', 'PRUEBA (no es un dato real)', '2026-10-10', 'TEST-0001']) {
+    if (!card.includes(t)) throw new Error('Falta «' + t + '» en la ficha: ' + card);
+  }
+  step('persistencia de valores tras recargar');
+  await page.reload();
+  await click('[data-act="open-career"]');
+  await page.waitForSelector('[data-act="tab"]');
+  await openUno();
+  const card2 = await page.locator('section.card', { hasText: 'Valor de mercado FC 27' }).innerText();
+  if (!card2.includes('85.000.000 €')) throw new Error('El valor no persiste tras recargar');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="market"]');
+  await snap('19-mercado');
+
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   if (overflow) errors.push('Desbordamiento horizontal en ajustes');
   await browser.close();

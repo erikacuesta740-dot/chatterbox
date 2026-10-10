@@ -175,26 +175,38 @@
     return { title: 'Mis carreras', sub: App.metas.length + ' guardadas en este dispositivo', html };
   };
 
+  // Dataset elegido para una carrera nueva: demo o base importada por el usuario.
+  function activeDataset() {
+    return App.ui.newDataset === 'custom' && App.customDataset ? App.customDataset : MCM.generator.defaultDataset();
+  }
+  const clubRow = (c) => (Array.isArray(c) ? { name: c[0], short: c[1], rep: c[2], stadium: c[3], colors: [c[4], c[5]] }
+    : { name: c.name, short: c.short || c.name.slice(0, 3).toUpperCase(), rep: c.rep, stadium: c.stadium || '', colors: c.colors || ['#888888', '#ffffff'], id: c.id, players: c.players });
+
   VIEWS.newCareer = function () {
-    const leagues = MCM.DATA.leagues;
+    const ds = activeDataset();
+    const leagues = ds.leagues;
     const L = leagues.find((l) => l.id === App.ui.newLeague) || leagues[0];
+    const dsChips = App.customDataset
+      ? '<div class="chips"><button class="chip ' + (App.ui.newDataset !== 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="demo">Base demo</button>' +
+        '<button class="chip ' + (App.ui.newDataset === 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="custom">' + esc((App.customDataset.info && App.customDataset.info.name) || 'Base importada') + '</button></div>'
+      : '';
     if (!App.ui.newClub) {
-      const clubs = L.clubs.map((row) => ({ name: row[0], short: row[1], rep: row[2], stadium: row[3], colors: [row[4], row[5]] }))
-        .sort((a, b) => b.rep - a.rep);
-      const html = '<div class="chips" role="tablist">' + leagues.map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + l.id + '">' + esc(l.name) + ' · ' + esc(l.country) + '</button>').join('') + '</div>' +
+      const clubs = L.clubs.map(clubRow).sort((a, b) => b.rep - a.rep);
+      const html = dsChips + '<div class="chips" role="tablist">' + leagues.map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + esc(l.id) + '">' + esc(l.name) + ' · ' + esc(l.country) + '</button>').join('') + '</div>' +
         '<section class="card"><div class="section-head"><h2>Elige club</h2><span class="small muted">' + clubs.length + ' clubes</span></div><div class="plist">' +
         clubs.map((c) => {
           const lvl = Math.round(MCM.generator.baseOvr(c.rep) + 2);
           const budget = MCM.generator.transferBudget(c.rep, L.wealth || 1);
-          return '<button class="prow" data-act="new-club" data-id="' + esc(U.slug(c.name)) + '">' + UI.crest(c, 34) +
+          return '<button class="prow" data-act="new-club" data-id="' + esc(c.id || U.slug(c.name)) + '">' + UI.crest(c, 34) +
             '<span class="grow"><span class="name ellipsis" style="display:block">' + esc(c.name) + '</span><span class="meta">' + esc(c.stadium || 'Estadio sin datos') + ' · Presupuesto ' + U.money(budget) + '</span></span>' +
             UI.ovr(lvl) + '</button>';
         }).join('') + '</div></section>';
       return { title: 'Nueva carrera', sub: 'Paso 1 de 2 · Liga y club', html, tabs: false };
     }
-    const row = L.clubs.find((r) => U.slug(r[0]) === App.ui.newClub);
-    const club = { name: row[0], short: row[1], rep: row[2], stadium: row[3], colors: [row[4], row[5]] };
+    const club = L.clubs.map(clubRow).find((c) => (c.id || U.slug(c.name)) === App.ui.newClub);
+    if (!club) { App.ui.newClub = null; return VIEWS.newCareer(); }
     const html = '<section class="card"><div class="row">' + UI.crest(club, 56) + '<div class="grow"><h2>' + esc(club.name) + '</h2><div class="small muted">' + esc(L.name) + ' · ' + esc(L.country) + '</div><div class="small muted">' + esc(club.stadium || '') + '</div></div></div>' +
+      '<p class="small muted">Base de datos: ' + esc((ds.info && ds.info.name) || 'Importada') + '</p>' +
       '<button class="btn sm ghost" data-act="new-club-reset" style="justify-self:start">Cambiar club</button></section>' +
       '<form class="card" id="new-form" data-submit="create-career">' +
       '<label class="field" for="nc-name">Nombre de la carrera<input class="input" id="nc-name" name="name" maxlength="60" value="' + esc('Carrera con ' + club.name) + '"></label>' +
@@ -320,7 +332,7 @@
     const avail = all.filter(PL.isAvailable).length;
     const xi = new Set((C.userClub(s).lineup || { xi: [] }).xi);
     const html = '<section class="kv"><div><span>Jugadores</span><b>' + all.length + '</b></div><div><span>Disponibles</span><b>' + avail + '</b></div>' +
-      '<div><span>Edad media</span><b>' + U.avg(all.map((p) => p.age)).toFixed(1) + '</b></div><div><span>Valor</span><b>' + U.money(C.squadValue(s, s.clubId)) + '</b></div></section>' +
+      '<div><span>Edad media</span><b>' + U.avg(all.map((p) => p.age)).toFixed(1) + '</b></div><div><span>Valor estimado</span><b>' + U.money(C.squadValue(s, s.clubId)) + '</b></div></section>' +
       '<div class="chips">' + [['ALL', 'Todos'], ['GK', 'Porteros'], ['DEF', 'Defensas'], ['MID', 'Centrocampistas'], ['ATT', 'Delanteros']].map((c) => '<button class="chip ' + (f === c[0] ? 'on' : '') + '" data-act="squad-filter" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' +
       '<div class="chips">' + [['pos', 'Posición'], ['ovr', 'Media'], ['age', 'Edad'], ['fit', 'Forma física']].map((c) => '<button class="chip ' + (App.ui.squadSort === c[0] ? 'on' : '') + '" data-act="squad-sort" data-v="' + c[0] + '">Ordenar: ' + c[1] + '</button>').join('') + '</div>' +
       '<section class="card"><div class="plist">' + list.map((p) => UI.playerRow(p, { meta: (xi.has(p.id) ? 'Titular · ' : '') + p.stats.apps + ' PJ · ' + p.stats.goals + ' G' })).join('') + '</div></section>';
@@ -341,8 +353,12 @@
       '<div style="text-align:center"><div class="eyebrow">Pot.</div><div class="scoreboard" style="font-size:1.8rem">' + p.pot + '</div></div></div>' +
       '<div class="row wrap">' + (club ? '<span class="row" style="gap:6px">' + UI.crest(club, 20) + '<span class="small">' + esc(club.name) + '</span></span>' : '<span class="pill mute">Agente libre</span>') +
       '<span class="pill ' + (st.code === 'ok' ? 'good' : st.code === 'tired' ? 'warn' : 'bad') + '">' + esc(st.label) + '</span>' +
-      (p.youth ? '<span class="pill info">Cantera</span>' : '') + (p.demo ? '<span class="pill mute">Ficticio (demo)</span>' : '') + '</div></section>';
-    html += '<section class="kv"><div><span>Valor de mercado</span><b>' + U.money(p.value) + '</b></div><div><span>Salario</span><b>' + U.wage(p.wage) + '</b></div>' +
+      (p.youth ? '<span class="pill info">Cantera</span>' : '') + (p.demo ? '<span class="pill mute">Ficticio (demo)</span>' : '') + '</div>' +
+      '<p class="small muted">' + (p.demo
+        ? 'Jugador ficticio de la base de demostración: media, potencial, edad y posición son inventados, no datos de FC 27.'
+        : 'Media, potencial, edad y posición proceden de la base importada «' + esc(s.dataset.name) + '»' + (p.extId ? ' (id ' + esc(p.extId) + ')' : '') + '. El juego no puede verificarlos por sí mismo.') + '</p></section>';
+    html += fc27Card(p, club);
+    html += '<section class="kv"><div><span>Valor estimado del juego</span><b>' + U.money(p.value) + '</b></div><div><span>Salario</span><b>' + U.wage(p.wage) + '</b></div>' +
       '<div><span>Contrato hasta</span><b>Jun ' + (p.contractEnd) + '</b></div><div><span>Forma (nota)</span><b>' + p.form.toFixed(1) + '</b></div></section>';
     html += '<section class="card"><h3>Estado</h3>' +
       '<div class="attr"><span>Forma física</span>' + UI.bar(p.fitness, 100) + '<b>' + Math.round(p.fitness) + '</b></div>' +
@@ -357,6 +373,31 @@
       : '<p class="small muted">Sin lesiones registradas.</p>') + '</section>';
     return { title: p.name, sub: p.pos + ' · ' + (club ? club.name : 'Sin club'), html };
   };
+
+  /* Tarjeta del valor de mercado de FC 27: solo se muestra un importe si viene de una importación con fuente. */
+  function fc27Card(p, club) {
+    const r = MCM.values.lookup(p, club ? club.name : '');
+    let html = '<section class="card"><div class="section-head"><h3>Valor de mercado FC 27</h3>';
+    if (!r) {
+      html += '<span class="pill warn">No verificado</span></div>' +
+        '<p class="small">No hay un valor de FC 27 importado para este jugador' + (p.demo ? ' (es un jugador ficticio de la base de demostración).' : '.') + '</p>' +
+        '<p class="small muted">El juego no calcula ni estima este dato. Se puede incorporar desde Ajustes › Valores de mercado FC 27.</p>';
+    } else {
+      const e = r.entry;
+      html += (e.status === 'verified' ? '<span class="pill good">Verificado según la fuente</span>' : '<span class="pill warn">Importado, no verificado</span>') + '</div>' +
+        '<div class="scoreboard" style="font-size:2rem;text-align:left">' + esc(e.raw) + '</div>' +
+        (e.raw !== MCM.values.formatExact(e.value, e.currency) ? '<p class="small muted">Importe registrado: ' + esc(MCM.values.formatExact(e.value, e.currency)) + (e.abbreviated ? ' (la fuente lo da abreviado)' : '') + '</p>' : '') +
+        '<div class="stack small">' +
+        '<div class="row"><span class="muted grow">Edición</span><b>' + esc(e.edition) + '</b></div>' +
+        '<div class="row"><span class="muted grow">Fuente</span><b style="text-align:right">' + esc(e.source) + '</b></div>' +
+        (e.sourceUrl ? '<div class="row"><span class="muted grow">Enlace</span><a href="' + esc(e.sourceUrl) + '" target="_blank" rel="noopener" class="ellipsis" style="max-width:60%">' + esc(e.sourceUrl) + '</a></div>' : '') +
+        '<div class="row"><span class="muted grow">Consulta en la fuente</span><b>' + esc(e.retrievedAt || 'sin fecha') + '</b></div>' +
+        '<div class="row"><span class="muted grow">Importado</span><b>' + esc(String(e.importedAt || '').slice(0, 10)) + '</b></div>' +
+        '<div class="row"><span class="muted grow">Enlazado por</span><b>' + (r.match === 'id' ? 'identificador ' + esc(e.id) : 'nombre y club') + '</b></div></div>';
+    }
+    html += '<p class="small muted">El precio que pida un club, las ofertas, contraofertas y cesiones son cantidades distintas y nunca modifican este valor.</p></section>';
+    return html;
+  }
 
   VIEWS.tactics = function () {
     const s = App.s;
@@ -485,7 +526,7 @@
     const L = C.userLeague(s);
     let html = '<section class="card"><div class="row">' + UI.crest(club, 64) + '<div class="grow"><h2>' + esc(club.name) + '</h2><div class="small muted">' + esc(L.name) + ' · ' + esc(club.country) + '</div><div class="small muted">Estadio: ' + esc(club.stadium || 'sin datos') + '</div></div></div>' +
       '<div class="attr"><span>Reputación</span>' + UI.bar(club.rep, 100, 'accent') + '<b>' + club.rep + '</b></div></section>' +
-      '<section class="kv"><div><span>Media del once</span><b>' + C.teamRatingCache(s, club.id) + '</b></div><div><span>Valor plantilla</span><b>' + U.money(C.squadValue(s, club.id)) + '</b></div>' +
+      '<section class="kv"><div><span>Media del once</span><b>' + C.teamRatingCache(s, club.id) + '</b></div><div><span>Valor estimado plantilla</span><b>' + U.money(C.squadValue(s, club.id)) + '</b></div>' +
       '<div><span>Presupuesto</span><b>' + U.money(club.budget) + '</b></div><div><span>Masa salarial</span><b>' + U.wage(C.wageBill(s, club.id)) + '</b></div></section>' +
       '<section class="card"><h3>Objetivo de la directiva</h3><p>' + esc(club.objective.text) + '</p><p class="small muted">Puesto exigido: ' + club.objective.target + 'º o mejor.</p></section>' +
       '<button class="btn block" data-act="tab" data-view="squad">' + icon('squad') + 'Ver plantilla</button>';
@@ -506,7 +547,7 @@
     const wages = C.wageBill(s, club.id);
     const endYear = s.season.year + 1;
     let html = '<section class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(club.budget) + '</b></div><div><span>Salarios / semana</span><b>' + U.money(wages) + '</b></div>' +
-      '<div><span>Salarios / temporada</span><b>' + U.money(wages * 52) + '</b></div><div><span>Valor plantilla</span><b>' + U.money(C.squadValue(s, club.id)) + '</b></div></section>' +
+      '<div><span>Salarios / temporada</span><b>' + U.money(wages * 52) + '</b></div><div><span>Valor estimado plantilla</span><b>' + U.money(C.squadValue(s, club.id)) + '</b></div></section>' +
       '<section class="notice info">Todos los salarios del juego se expresan en euros por semana. La negociación de renovaciones, ingresos por taquilla y el balance detallado llegan en la Etapa 2. Por ahora, los contratos que vencen se renuevan automáticamente al cerrar la temporada.</section>' +
       '<section class="card"><h3>Contratos</h3><div class="table-wrap"><table class="tbl"><thead><tr><th class="l">Jugador</th><th>Media</th><th>Salario</th><th>Fin</th></tr></thead><tbody>' +
       squad.map((p) => '<tr><td class="l"><button data-act="player" data-id="' + p.id + '" style="border:0;background:none;padding:0;text-align:left;font-weight:600">' + esc(p.name) + '</button><div class="small muted">' + p.pos + ' · ' + p.age + ' años</div></td><td>' + p.ovr + '</td><td>' + U.money(p.wage) + '</td><td>' +
@@ -527,9 +568,14 @@
       '<label class="field" for="mk-ovr">Media mínima<input class="input" id="mk-ovr" name="ovr" type="number" inputmode="numeric" min="0" max="99" value="' + (minOvr || '') + '"></label></div>' +
       '<button class="btn primary" type="submit">Buscar</button></form>' +
       '<section class="card"><div class="section-head"><h3>Resultados</h3><span class="small muted">' + res.length + (res.length === 60 ? '+' : '') + '</span></div><div class="plist">' +
-      res.map((p) => UI.playerRow(p, { meta: esc(s.clubs[p.clubId].short) + ' · ' + U.money(p.value) })).join('') + '</div></section>';
+      res.map((p) => UI.playerRow(p, { meta: esc(s.clubs[p.clubId].short) + ' · ' + marketLabel(p, s.clubs[p.clubId]) })).join('') + '</div></section>';
     return { title: 'Mercado de fichajes', sub: 'Presupuesto ' + U.money(C.userClub(s).budget), html };
   };
+
+  function marketLabel(p, club) {
+    const r = MCM.values.lookup(p, club ? club.name : '');
+    return r ? 'FC 27: ' + esc(r.entry.raw) : 'est. ' + U.money(p.value) + ' (FC 27 no verificado)';
+  }
 
   VIEWS.freeagents = function () {
     const s = App.s;
@@ -577,6 +623,27 @@
       '<label class="field" for="import-file">Desde archivo<input class="input" id="import-file" type="file" accept=".json,application/json,text/plain" data-change="import-file"></label>' +
       '<label class="field" for="import-text">O pega el texto exportado<textarea class="input" id="import-text" placeholder="{ ... }"></textarea></label>' +
       '<button class="btn sm" data-act="import-text">Importar texto</button></section>';
+    const vs = MCM.values.dbStats();
+    html += '<section class="card" id="fc27"><h3>Valores de mercado FC 27</h3>' +
+      '<div class="kv"><div><span>En el registro</span><b>' + vs.total + '</b></div><div><span>Verificados</span><b>' + vs.verified + '</b></div>' +
+      '<div><span>Importados sin verificar</span><b>' + vs.unverified + '</b></div><div><span>Última importación</span><b>' + esc(MCM.values.db.imports[0] ? MCM.values.db.imports[0].at.slice(0, 10) : '—') + '</b></div></div>';
+    if (App.s) {
+      const cs = MCM.values.careerStats(App.s);
+      html += '<p class="small">Carrera abierta: <b>' + cs.verified + '</b> jugadores con valor FC 27 verificado, <b>' + cs.imported + '</b> importados sin verificar y <b>' + cs.missing + '</b> sin valor (' + cs.fictional + ' son ficticios de la demo).</p>';
+    }
+    html += '<p class="small muted">Esta versión no incluye valores de FC 27: no se ha podido acceder a una fuente verificable con permiso de uso. Mientras no se importen, todos los jugadores muestran «No verificado». ' +
+      'Solo se aceptan archivos que declaren la edición FC 27, con identificador, fuente y fecha por jugador. Importar actualiza por identificador, no duplica y no modifica ninguna carrera.</p>' +
+      '<label class="field" for="values-file">Desde archivo (JSON o CSV)<input class="input" id="values-file" type="file" accept=".json,.csv,application/json,text/csv,text/plain" data-change="values-file"></label>' +
+      '<label class="field" for="values-text">O pega el contenido<textarea class="input" id="values-text" placeholder="id,name,club,value,currency,edition,source,sourceUrl,retrievedAt,verified"></textarea></label>' +
+      '<div class="btn-row"><button class="btn sm" data-act="values-import-text">Importar valores</button>' + (vs.total ? '<button class="btn sm ghost" data-act="values-clear" style="color:var(--bad)">Vaciar registro</button>' : '') + '</div></section>';
+    const cd = App.customDataset;
+    html += '<section class="card"><h3>Base de datos de plantillas</h3>' +
+      (cd ? '<p class="small">Importada: <b>' + esc((cd.info && cd.info.name) || 'Sin nombre') + '</b> · ' + cd.leagues.length + ' ligas · ' + cd.leagues.reduce((n, l) => n + l.clubs.length, 0) + ' clubes · ' +
+        cd.leagues.reduce((n, l) => n + l.clubs.reduce((m, c) => m + ((c.players && c.players.length) || 0), 0), 0) + ' jugadores reales. Se usa al elegir «' + esc((cd.info && cd.info.name) || 'Base importada') + '» en Nueva carrera.</p>'
+        : '<p class="small muted">Para que haya jugadores reales a los que asociar valores de FC 27, importa una base de plantillas (formato en docs/DATA_FORMAT.md). Las carreras existentes no cambian.</p>') +
+      '<label class="field" for="dataset-file">Desde archivo JSON<input class="input" id="dataset-file" type="file" accept=".json,application/json,text/plain" data-change="dataset-file"></label>' +
+      '<label class="field" for="dataset-text">O pega el JSON<textarea class="input" id="dataset-text" placeholder="{ &quot;info&quot;: {...}, &quot;leagues&quot;: [...] }"></textarea></label>' +
+      '<div class="btn-row"><button class="btn sm" data-act="dataset-import-text">Importar base</button>' + (cd ? '<button class="btn sm ghost" data-act="dataset-clear" style="color:var(--bad)">Quitar base</button>' : '') + '</div></section>';
     html += '<section class="card"><h3>Datos del juego</h3><p class="small">' + esc(MCM.DATA.datasetInfo.name) + '. ' + esc(MCM.DATA.datasetInfo.note) + '</p>' +
       '<p class="small muted">' + MCM.DATA.leagues.length + ' ligas · ' + MCM.DATA.leagues.reduce((n, l) => n + l.clubs.length, 0) + ' clubes. La estructura admite importar bases de datos legítimas (formato en docs/DATA_FORMAT.md).</p></section>';
     html += '<section class="card"><h3>Hoja de ruta</h3><div class="stack small">' +
@@ -585,7 +652,7 @@
       '<div><span class="pill mute">Después</span> Etapa 3 · Lesiones, moral y cantera en profundidad; noticias y objetivos.</div>' +
       '<div><span class="pill mute">Después</span> Etapa 4 · Cuentas y guardado online privado para dos usuarios.</div>' +
       '<div><span class="pill mute">Después</span> Etapa 5 · Datos ampliados, pruebas, publicación e instalación en el iPhone.</div></div></section>';
-    return { title: 'Ajustes', sub: 'Versión Etapa 1', html, tabs: !!App.s };
+    return { title: 'Ajustes', sub: 'Etapa 1 · registro de valores FC 27', html, tabs: !!App.s };
   };
 
   // Dentro de un visor incrustado (vista previa) las descargas están bloqueadas.
@@ -621,6 +688,7 @@
       App.go(d.view, {});
     },
     'new-career': () => { App.ui.newClub = null; App.go('newCareer', {}); },
+    'new-dataset': (d) => { App.ui.newDataset = d.v; App.ui.newLeague = null; App.ui.newClub = null; App.render(); },
     'new-league': (d) => { App.ui.newLeague = d.id; App.render(); },
     'new-club': (d) => { App.ui.newClub = d.id; App.render(true); },
     'new-club-reset': () => { App.ui.newClub = null; App.render(true); },
@@ -773,6 +841,20 @@
       toast('Si no se descarga, usa «Copiar al portapapeles»');
     },
     'import-text': () => importCareer($('#import-text').value),
+    'values-import-text': () => importValues($('#values-text').value),
+    'values-clear': () => confirmSheet({
+      title: 'Vaciar registro de valores FC 27',
+      body: 'Se borrarán los ' + MCM.values.dbStats().total + ' valores importados. Las carreras guardadas no cambian; sus jugadores volverán a mostrar «No verificado».',
+      yes: 'Vaciar registro', danger: true,
+      onYes: async () => { MCM.values.setDb(null); await MCM.values.save(); toast('Registro vaciado'); App.render(); },
+    }),
+    'dataset-import-text': () => importDataset($('#dataset-text').value),
+    'dataset-clear': () => confirmSheet({
+      title: 'Quitar base de plantillas',
+      body: 'Las carreras ya creadas con esta base no cambian. Solo dejará de estar disponible para carreras nuevas.',
+      yes: 'Quitar base', danger: true,
+      onYes: async () => { App.customDataset = null; App.ui.newDataset = 'demo'; await MCM.store.setSetting('customDataset', null); toast('Base quitada'); App.render(); },
+    }),
   };
 
   function rebuildBench(s, lu) {
@@ -783,6 +865,37 @@
     if (gk) bench.push(gk.id);
     rest.forEach((p) => { if (bench.length < 9 && !bench.includes(p.id)) bench.push(p.id); });
     return bench;
+  }
+
+  async function importValues(text) {
+    const parsed = MCM.values.parse(text);
+    if (parsed.errors.length) { sheet('<h2>No se ha importado nada</h2><div class="warn-list">' + parsed.errors.map((e) => '<div class="warn-item error"><i></i><span>' + esc(e) + '</span></div>').join('') + '</div><button class="btn" data-act="sheet-close">Cerrar</button>'); return; }
+    const report = parsed.entries.length ? MCM.values.merge(MCM.values.db, parsed.entries, new Date().toISOString()) : { added: 0, updated: 0, unchanged: 0 };
+    MCM.values.setDb(MCM.values.db);
+    if (parsed.entries.length) await MCM.values.save();
+    const st = MCM.values.dbStats();
+    const cs = App.s ? MCM.values.careerStats(App.s) : null;
+    sheet('<h2>Importación de valores FC 27</h2>' +
+      '<div class="kv"><div><span>Nuevos</span><b>' + report.added + '</b></div><div><span>Actualizados</span><b>' + report.updated + '</b></div>' +
+      '<div><span>Sin cambios</span><b>' + report.unchanged + '</b></div><div><span>Rechazados</span><b>' + parsed.rejected.length + '</b></div></div>' +
+      '<p class="small">Registro: ' + st.total + ' valores (' + st.verified + ' verificados, ' + st.unverified + ' sin verificar).' +
+      (cs ? ' En la carrera abierta: ' + cs.verified + ' verificados, ' + cs.imported + ' sin verificar, ' + cs.missing + ' sin valor.' : '') + '</p>' +
+      (parsed.rejected.length ? '<div class="warn-list">' + parsed.rejected.slice(0, 12).map((r) => '<div class="warn-item warn"><i></i><span>' + esc(r.line + ': ' + r.reason) + '</span></div>').join('') + (parsed.rejected.length > 12 ? '<p class="small muted">… y ' + (parsed.rejected.length - 12) + ' más.</p>' : '') + '</div>' : '') +
+      '<button class="btn primary" data-act="sheet-close">Entendido</button>');
+    App.render();
+  }
+
+  async function importDataset(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { toast('El texto no es un JSON válido.'); return; }
+    const errors = MCM.generator.validateDataset(data);
+    if (errors.length) { sheet('<h2>Base no válida</h2><div class="warn-list">' + errors.map((e) => '<div class="warn-item error"><i></i><span>' + esc(e) + '</span></div>').join('') + '</div><button class="btn" data-act="sheet-close">Cerrar</button>'); return; }
+    data.info = Object.assign({ id: 'custom', name: 'Base importada' }, data.info || {}, { isDemo: false });
+    App.customDataset = data;
+    App.ui.newDataset = 'custom';
+    await MCM.store.setSetting('customDataset', data);
+    toast('Base importada: disponible en Nueva carrera');
+    App.render();
   }
 
   async function importCareer(text) {
@@ -804,7 +917,7 @@
     'create-career': async (fd) => {
       await busy('Creando carrera…');
       try {
-        const s = C.create({ clubId: App.ui.newClub, name: fd.get('name'), managerName: fd.get('manager'), owner: App.profile || 'Jugador local' });
+        const s = C.create({ dataset: activeDataset(), clubId: App.ui.newClub, name: fd.get('name'), managerName: fd.get('manager'), owner: App.profile || 'Jugador local' });
         App.s = s;
         await persist();
         await refreshMetas();
@@ -847,6 +960,8 @@
       await persist();
       App.render();
     },
+    'values-file': (el) => readFile(el, importValues),
+    'dataset-file': (el) => readFile(el, importDataset),
     'import-file': (el) => {
       const file = el.files && el.files[0];
       if (!file) return;
@@ -855,6 +970,14 @@
       r.readAsText(file);
     },
   };
+
+  function readFile(el, fn) {
+    const file = el.files && el.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => fn(String(r.result));
+    r.readAsText(file);
+  }
 
   function applyTheme() {
     const root = document.documentElement;
@@ -892,6 +1015,8 @@
     try {
       App.profile = (await MCM.store.getSetting('profile')) || '';
       App.theme = (await MCM.store.getSetting('theme')) || 'system';
+      await MCM.values.load();
+      App.customDataset = (await MCM.store.getSetting('customDataset')) || null;
       applyTheme();
       await refreshMetas();
     } catch (e) { console.error(e); }

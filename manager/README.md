@@ -24,6 +24,10 @@ Funciona:
 - Fin de temporada: campeón, historial, ascensos y descensos (España e Inglaterra), evolución de jugadores según edad, potencial y minutos, retiradas, canteranos y nueva temporada.
 - Noticias generadas a partir de lo que pasa en tu carrera.
 - Guardado automático **local** (IndexedDB) y exportación/importación de una carrera como texto.
+- Registro de **valores de mercado de FC 27** con procedencia (fuente, fecha, estado de verificación), importable en JSON o CSV,
+  separado del valor estimado del juego. **Ahora mismo no incluye ningún valor de FC 27** (ver `docs/FC27_VALUES.md`):
+  todos los jugadores aparecen como «No verificado».
+- Importación de bases de plantillas reales (JSON, ver `docs/DATA_FORMAT.md`) para crear carreras con ellas.
 
 Pendiente (próximas etapas):
 
