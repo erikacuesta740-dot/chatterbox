@@ -16,8 +16,8 @@
 
   MCM.DATA.realRostersInfo = {
     id: 'real-2025-26-conocimiento',
-    name: 'Plantillas reales LaLiga y Premier (no verificadas)',
-    note: 'Jugadores reales según conocimiento hasta mediados de 2026. Medias y potenciales estimados; no son datos de FC 27. Las demás ligas usan jugadores ficticios.',
+    name: 'Plantillas reales (no verificadas)',
+    note: 'Jugadores reales según conocimiento hasta mediados de 2026. Medias y potenciales estimados; no son datos de FC 27. Segunda, Serie A, Bundesliga, clubes europeos invitados y agentes libres aún usan jugadores ficticios.',
     knowledgeCutoff: '2026-06',
   };
 
@@ -146,7 +146,7 @@
       'Alemão|DC|1998|74|75|BRA', 'Randy Nteka|DC|1997|73|73|FRA',
     ],
     'rcd-mallorca': [
-      'Leo Román|POR|2000|76|80|ESP', 'Dominik Greif|POR|1997|76|77|SVK', 'Pablo Maffeo|LD|1997|76|76|ARG',
+      'Leo Román|POR|2000|76|80|ESP', 'Pablo Maffeo|LD|1997|76|76|ARG',
       'Mateu Morey|LD|2000|72|74|ESP', 'Martin Valjent|DFC|1995|78|78|SVK', 'Antonio Raíllo|DFC|1991|77|77|ESP',
       'Marash Kumbulla|DFC|2000|74|76|ALB', 'Johan Mojica|LI|1992|75|75|COL', 'Toni Lato|LI|1997|73|73|ESP',
       'Samú Costa|MCD|2000|78|79|POR', 'Omar Mascarell|MCD|1993|74|74|ESP', 'Sergi Darder|MC|1993|77|77|ESP',

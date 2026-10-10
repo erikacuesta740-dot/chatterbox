@@ -160,6 +160,9 @@
     return ids;
   }
 
+  G.importSquad = importSquad;
+  G.fillSquad = fillSquad;
+
   G.transferBudget = function (rep, wealth) {
     const x = U.clamp((rep - 42) / 52, 0.02, 1.1);
     return Math.round((Math.pow(x, 3) * 150e6 * (0.6 + 0.4 * wealth) + 0.4e6) / 1e5) * 1e5;

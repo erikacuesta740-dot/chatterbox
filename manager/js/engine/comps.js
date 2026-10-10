@@ -123,6 +123,7 @@
     if (s.extraClubsReady) return;
     const rng = U.rng(s.seed + ':extra');
     const ctx = { rng, nextId: s.nextId, usedNames: new Set(), players: s.players, startYear: s.season.year };
+    const useReal = !!(s.dataset && MCM.DATA.realRostersInfo && s.dataset.id === MCM.DATA.realRostersInfo.id);
     const POS = ['POR', 'POR', 'DFC', 'DFC', 'DFC', 'LD', 'LI', 'LD', 'MCD', 'MC', 'MC', 'MCO', 'MD', 'ED', 'EI', 'DC', 'DC', 'EI', 'MC', 'DFC'];
     K.EXTRA_CLUBS.forEach((row) => {
       const id = U.slug(row[0]);
@@ -132,6 +133,18 @@
         colors: [row[4], row[5]], wealth: 0.4, reserveOf: null, budget: MCM.generator.transferBudget(row[3], 0.4),
         tactics: MCM.lineup.defaultTactics(), lineup: null, squad: [], ext: true,
       };
+      // Carrera con plantillas reales: usa la plantilla real del club si existe (huecos con ficticios).
+      const real = useReal && MCM.DATA.realRosters[id];
+      if (real) {
+        const list = real.map((line) => {
+          const [name, pos, by, ovr, pot, nat] = line.split('|');
+          return { id: 'mc:' + U.slug(name) + '-' + by, name, pos, nat, age: s.season.year - Number(by), ovr: Number(ovr), pot: Math.max(Number(ovr), Number(pot)), src: 'knowledge' };
+        });
+        const lg = { nat: MCM.DATA.nations[row[2]] ? row[2] : 'ENG' };
+        club.squad = MCM.generator.fillSquad(ctx, club, lg, MCM.generator.importSquad(ctx, club, lg, list));
+        s.clubs[id] = club;
+        return;
+      }
       const base = MCM.generator.baseOvr(club.rep);
       POS.forEach((pos, i) => {
         const starter = i < 13 && i !== 1;
