@@ -1,0 +1,13 @@
+{
+  "name": "modo-carrera-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Simulador de gestión futbolística para móvil (web estática, sin dependencias).",
+  "scripts": {
+    "test": "node --test tests/engine.test.js",
+    "e2e": "node tests/e2e.js",
+    "build": "node tools/build-single.js dist/modo-carrera-manager.html",
+    "serve": "http-server -p 8765 -s ."
+  },
+  "license": "MIT"
+}
