@@ -251,7 +251,7 @@
     let res = Object.values(s.players).filter((p) => p.clubId && p.clubId !== s.clubId && !p.academy &&
       (f.pos === 'ALL' || p.pos === f.pos) && (f.league === 'ALL' || s.clubs[p.clubId].leagueId === f.league) &&
       (f.club === 'ALL' || p.clubId === f.club) && (f.nat === 'ALL' || p.nat === f.nat) &&
-      (ageMin == null || p.age >= ageMin) && (ageMax == null || p.age <= ageMax) && (ovr == null || p.ovr >= ovr) && (pot == null || p.pot >= pot) &&
+      (ageMin == null || p.age >= ageMin) && (ageMax == null || p.age <= ageMax) && (ovr == null || p.ovr >= ovr) && (pot == null || (MCM.life.potRange(s, p) ? MCM.life.potRange(s, p)[1] : p.pot) >= pot) &&
       (!q || p.name.toLowerCase().includes(q)));
     if (price != null) res = res.filter((p) => T.askingPrice(s, p) <= price);
     const sorters = { ovr: (a, b) => b.ovr - a.ovr, pot: (a, b) => b.pot - a.pot, age: (a, b) => a.age - b.age, value: (a, b) => T.reference(s, b).value - T.reference(s, a).value };
@@ -346,7 +346,7 @@
     const f = App.ui.fa;
     const num = (x) => (x === '' || x == null ? null : Number(x));
     const list = s.freeAgents.map((id) => s.players[id]).filter((p) => p && (f.pos === 'ALL' || p.pos === f.pos) &&
-      (num(f.ageMax) == null || p.age <= num(f.ageMax)) && (num(f.ovr) == null || p.ovr >= num(f.ovr)) && (num(f.pot) == null || p.pot >= num(f.pot)))
+      (num(f.ageMax) == null || p.age <= num(f.ageMax)) && (num(f.ovr) == null || p.ovr >= num(f.ovr)) && (num(f.pot) == null || (MCM.life.potRange(s, p) ? MCM.life.potRange(s, p)[1] : p.pot) >= num(f.pot)))
       .sort((a, b) => b.ovr - a.ovr);
     const opt = (v, cur, label) => '<option value="' + esc(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + esc(label) + '</option>';
     const html = '<section class="notice small">Los agentes libres se pueden fichar en cualquier momento, sin pagar traspaso: solo salario y prima de firma.</section>' +
@@ -356,7 +356,7 @@
       '<label class="field" for="fa-pot">Potencial mín.<input class="input" id="fa-pot" name="pot" type="number" inputmode="numeric" value="' + esc(f.pot) + '"></label></div>' +
       '<button class="btn primary" type="submit">Filtrar</button></form>' +
       '<section class="card"><div class="section-head"><h3>Sin club</h3><span class="small muted">' + list.length + '</span></div><div class="plist">' +
-      (list.length ? list.map((p) => UI.playerRow(p, { meta: 'Pot. ' + p.pot + ' · pide ~' + U.wage(T.contractDemand(s, p, 'free').wage) })).join('') : '<p class="small muted">Ningún agente libre cumple los filtros.</p>') + '</div></section>';
+      (list.length ? list.map((p) => UI.playerRow(p, { meta: 'Pot. ' + MCM.life.potLabel(s, p) + ' · pide ~' + U.wage(T.contractDemand(s, p, 'free').wage) })).join('') : '<p class="small muted">Ningún agente libre cumple los filtros.</p>') + '</div></section>';
     return { title: 'Agentes libres', sub: s.freeAgents.length + ' jugadores sin club', html };
   };
   F['fa-search'] = (fd) => { ['pos', 'ageMax', 'ovr', 'pot'].forEach((k) => { App.ui.fa[k] = String(fd.get(k) || (k === 'pos' ? 'ALL' : '')); }); App.render(); };

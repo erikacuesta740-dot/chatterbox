@@ -113,3 +113,28 @@ test('carrera del entrenador: premios, historial, despido y cambio de club', () 
   assert.ok(C.playUserMatch(s));
   assert.deepStrictEqual(C.validate(s), []);
 });
+
+test('día a día: entrenamiento, ojeadores, cantera, charlas y prensa', () => {
+  const s = fresh('real-betis', 'life2');
+  const Lf = M.life;
+  assert.strictEqual(Lf.hireScout(s, 3), null);
+  const sc = s.scouting.scouts[0];
+  assert.strictEqual(Lf.assign(s, sc.id, { region: 'ENG', pos: 'ALL', weeks: 6 }), null);
+  const young = Object.values(s.players).find((p) => p.clubId && p.clubId !== s.clubId && p.age <= 20);
+  const r = Lf.potRange(s, young);
+  assert.ok(r && r[0] <= young.pot && young.pot <= r[1], 'el rango contiene el potencial real');
+  const p = C.squad(s, s.clubId).find((x) => x.pos !== 'POR');
+  assert.strictEqual(Lf.setPlan(s, p.id, { focus: 'pas' }), null);
+  const pas0 = p.attrs.pas;
+  s.clubs[s.clubId].training = 'high';
+  for (let i = 0; i < 10; i++) C.playUserMatch(s);
+  assert.ok(s.scouting.reports.length > 0, 'el ojeador entrega informes');
+  assert.ok(p.attrs.pas >= pas0, 'el plan no empeora el atributo');
+  const known = s.scouting.reports[0].pid;
+  assert.strictEqual(Lf.potRange(s, s.players[known]), null, 'con informe se ve el potencial exacto');
+  const t = Lf.talk(s, p.id, 'praise');
+  assert.ok(t.text);
+  assert.ok(Lf.talk(s, p.id, 'praise').error, 'no se puede repetir la charla enseguida');
+  if (s.press) { Lf.answerPress(s, s.press.questions.map(() => 0)); assert.strictEqual(s.press, null); }
+  assert.deepStrictEqual(C.validate(s), []);
+});

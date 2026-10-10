@@ -232,7 +232,7 @@
       }
       // Lesiones
       st.on[s].slice().forEach((e) => {
-        const risk = (0.0105 / SEG) * rate * (1 + Math.max(0, 75 - e.p.fitness) / 25) * (e.p.age >= 31 ? 1.25 : 1);
+        const risk = (0.0105 / SEG) * rate * (1 + Math.max(0, 75 - e.p.fitness) / 25) * (e.p.age >= 31 ? 1.25 : 1) * (st.sides[s].injuryFactor || 1);
         if (rng.chance(risk)) {
           const minute = m0 + rng.int(1, 5);
           const sev = rng.next();

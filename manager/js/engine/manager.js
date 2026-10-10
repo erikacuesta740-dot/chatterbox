@@ -106,6 +106,8 @@
     MCM.market.init(s);
     if (MCM.dev) MCM.dev.intake(s, U.rng(s.seed + ':newclub:' + club.id + s.season.label), 5, false);
     C().ensureNumbers(s, club.id);
+    if (s.scouting) s.scouting.prospects = [];
+    s.press = null;
     s._tr = {};
     C().news(s, 'board', s.managerName + ', nuevo entrenador de ' + club.name, 'Objetivo de la directiva: ' + (club.objective ? club.objective.text.toLowerCase() : 'consolidar al equipo') + '. Presupuesto de fichajes: ' + U.money(club.budget) + '.');
     return null;

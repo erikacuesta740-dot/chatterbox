@@ -88,7 +88,8 @@
       const share = p.academy ? 0.45 : U.clamp(p.stats.min / (weeks * 1.15 * 90), 0, 1);
       const gap = p.pot - p.ovr;
       let delta = 0;
-      if (p.age <= 24 && gap > 0 && rng.chance(Math.min(0.5, gap * 0.025 * (0.4 + share)))) delta = 1;
+      const tf = MCM.life ? MCM.life.devFactor(s, p) : 1;
+      if (p.age <= 24 && gap > 0 && rng.chance(Math.min(0.5, gap * 0.025 * (0.4 + share) * tf))) delta = 1;
       else if (p.age >= 31 && rng.chance(0.04 * (p.age - 30))) delta = -1;
       if (!delta) return;
       p.ovr += delta;

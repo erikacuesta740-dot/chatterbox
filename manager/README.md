@@ -13,11 +13,15 @@ los partidos se simulan.
 
 ## Qué incluye
 
-**Carreras y partidos**
+**Carreras, competiciones y partidos**
 - Carreras independientes: crear, continuar, renombrar y eliminar (con confirmación).
-- 7 ligas y 142 clubes, calendario a doble vuelta, simulación con crónica y estadísticas, clasificación y goleadores.
-- Tácticas (7 formaciones, mentalidad, presión, ritmo), once manual o automático con avisos.
-- Lesiones, cansancio, sanciones por tarjetas; fin de temporada con ascensos y descensos e historial.
+- 7 ligas y 142 clubes + 77 clubes europeos (nombres reales, plantillas ficticias).
+- Copas nacionales (Copa del Rey, FA Cup, Coppa Italia, DFB-Pokal, Coupe de France) con prórroga y penaltis.
+- Champions, Europa League y Conference League con fase liga de 36 equipos, playoffs, eliminatorias a doble partido y final.
+- Calendario por fechas: jornadas de fin de semana, partidos entre semana y parones internacionales; recuperación física diaria.
+- Partido en directo con comentarios, descanso con cambios y ajustes tácticos; o simulación de uno, varios o toda la temporada.
+- Tácticas (7 formaciones, mentalidad, presión, ritmo), dorsales, capitán y lanzadores; once manual o automático con avisos.
+- Lesiones, cansancio, sanciones; fin de temporada con ascensos, descensos, clasificación europea e historial.
 
 **Mercado y contratos (Etapa 2)**
 - Ventanas de verano (hasta el 1 de septiembre) e invierno (1 de enero – 2 de febrero). Fuera de ellas solo agentes libres y renovaciones.
@@ -33,6 +37,16 @@ los partidos se simulan.
 - Progresión durante la temporada según edad, potencial y minutos; consolidación al final de la temporada.
 - Moral según los minutos que espera cada rol; los descontentos piden salir.
 - Confianza de la directiva, rumores y noticias generadas a partir de lo que pasa en la partida.
+
+**Carrera del entrenador**
+- Reputación, despidos, dimisión, ofertas de otros clubes y cambio de equipo.
+- Premios: Balón de Oro, mejor jugador, máximo goleador, mejor portero y mejor joven por liga, equipo de la temporada, entrenador del año.
+- Vitrina de títulos, palmarés y récords del club, trayectoria de cada jugador.
+
+**Día a día**
+- Entrenamiento (intensidad) y planes de desarrollo: atributo a mejorar o reconversión de posición.
+- Red de ojeadores (1–5 estrellas) por regiones: el potencial de jugadores ajenos se ve como rango hasta tener informe; ojeadores juveniles proponen promesas para la cantera.
+- Charlas con jugadores (elogiar, exigir, prometer minutos, explicar su papel) y ruedas de prensa con efecto en vestuario y directiva.
 
 **Cuentas y guardado online (Etapa 4)**
 - Dentro de claude.ai, cada persona guarda sus carreras en su propio espacio privado de la base de datos del juego:
@@ -86,7 +100,7 @@ tools/build-single.js                             Empaqueta todo en un único HT
 ## Pruebas
 
 ```
-npm test                      # 21 pruebas: calendario, simulación, mercado, contratos, cantera, valores FC 27...
+npm test                      # 28 pruebas: calendario, simulación, mercado, contratos, cantera, valores FC 27...
 npm run serve                 # servidor local en :8765
 node tests/e2e.js             # recorrido completo en un navegador con tamaño de iPhone
 node tests/cloud-e2e.js       # guardado online, otro dispositivo y privacidad entre usuarios (base simulada)

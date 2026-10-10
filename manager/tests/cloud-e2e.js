@@ -54,10 +54,10 @@ const MOCK = () => {
   await page.click('[data-act="new-league"][data-id="ESP1"]');
   await page.click('[data-act="new-club"][data-id="real-betis"]');
   await page.click('#new-form button[type=submit]');
-  await page.waitForSelector('[data-act="sim-md-ask"]');
-  await page.click('[data-act="sim-md-ask"]');
-  await page.click('[data-act="confirm-yes"]');
-  await page.waitForTimeout(500);
+  await page.waitForSelector('[data-act="sim-match"]');
+  await page.click('[data-act="sim-match"]');
+  await page.waitForSelector('text=Crónica del partido');
+  await page.waitForTimeout(300);
   await page.evaluate(() => MCM.cloud.flush());
   await page.waitForSelector('text=Guardado online');
   const server = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('mock:server'))));
@@ -73,8 +73,8 @@ const MOCK = () => {
   await page.waitForSelector('text=Guardado online activado');
   await page.waitForSelector('[data-act="open-career"]');
   await page.click('[data-act="open-career"]');
-  await page.waitForSelector('[data-act="sim-md-ask"]');
-  const md = await page.evaluate(() => MCM.career.userLeague(MCM.app.s).played + ' ' + MCM.app.s.clubId);
+  await page.waitForSelector('[data-act="sim-match"]');
+  const md = await page.evaluate(() => MCM.career.userFixtures(MCM.app.s).filter((f) => f.played).length + ' ' + MCM.app.s.clubId);
   if (md !== '1 real-betis') throw new Error('No se recuperó la carrera online: ' + md);
 
   step('el segundo usuario no ve ni puede tocar la carrera');
@@ -95,7 +95,7 @@ const MOCK = () => {
   await page.reload();
   await page.waitForSelector('[data-act="open-career"]');
   await page.click('[data-act="open-career"]');
-  await page.waitForSelector('[data-act="sim-md-ask"]');
+  await page.waitForSelector('[data-act="sim-match"]');
   step('borrar elimina también la copia online');
   await page.click('[data-act="tab"][data-view="menu"]');
   await page.click('[data-act="nav"][data-view="careers"]');

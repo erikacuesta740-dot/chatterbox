@@ -180,6 +180,7 @@
     MCM.market.init(s);
     MCM.dev.init(s);
     MCM.mgr.init(s);
+    if (MCM.life) MCM.life.init(s);
     C.ensureNumbers(s, s.clubId);
     const club = C.userClub(s);
     C.news(s, 'board', 'Bienvenido a ' + club.name,
@@ -209,6 +210,7 @@
       bench: (lineup.bench || []).map((id) => s.players[id]).filter(Boolean),
       tactics: club.tactics,
       takers: clubId === s.clubId ? C.takers(s, clubId) : null,
+      injuryFactor: clubId === s.clubId && MCM.life ? MCM.life.intensity(s).inj : 1,
     };
   }
 
@@ -346,6 +348,7 @@
       matchNews(s, f, comp);
       if (isLeague) streakNews(s);
       MCM.mgr.afterMatch(s, f);
+      if (MCM.life) MCM.life.maybePress(s, f);
     }
     return res;
   };
@@ -424,7 +427,7 @@
           }
         }
         const phy = p.attrs.phy || 70;
-        const rec = (16 + (phy - 65) / 8 - (p.age >= 31 ? 3 : 0)) / 7;
+        const rec = ((16 + (phy - 65) / 8 - (p.age >= 31 ? 3 : 0)) / 7) * (MCM.life ? MCM.life.recoveryFactor(s, p) : 1);
         p.fitness = U.clamp(p.fitness + rec * days, 20, 100);
         p.morale += (65 - p.morale) * 0.007 * days;
       });
@@ -436,6 +439,7 @@
       s.week = (s.week || 0) + 1;
       MCM.market.weekly(s);
       if (MCM.dev) MCM.dev.weekly(s);
+      if (MCM.life) MCM.life.weekly(s);
       MCM.mgr.checkSack(s);
     }
   }
@@ -826,6 +830,7 @@
     MCM.market.init(s);
     if (MCM.dev) MCM.dev.init(s);
     MCM.mgr.init(s);
+    if (MCM.life) MCM.life.init(s);
     C.ensureNumbers(s, s.clubId);
     Object.values(s.players).forEach((p) => {
       if (p.listed == null) p.listed = false;

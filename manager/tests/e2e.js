@@ -72,6 +72,37 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   const played2 = await page.evaluate(() => MCM.career.userFixtures(MCM.app.s).filter((f) => f.played).length);
   if (played2 !== 5) throw new Error('Se esperaban 5 partidos jugados tras el directo, hay ' + played2);
 
+  step('entrenamiento, ojeadores, charla y prensa');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="training"]');
+  await click('[data-act="train-int"][data-v="high"]');
+  await click('[data-act="tab"][data-view="menu"]');
+  await click('[data-act="nav"][data-view="scouting"]');
+  await click('form[data-submit="scout-hire"] button[type=submit]');
+  await click('[data-act="scout-assign"]');
+  await page.selectOption('#sm-type', 'youth');
+  await click('form[data-submit="scout-mission"] button[type=submit]');
+  await page.waitForSelector('text=Buscando juveniles');
+  await snap('07a-ojeadores');
+  await click('[data-act="tab"][data-view="squad"]');
+  await page.locator('.prow[data-act="player"]').nth(3).click();
+  await page.waitForSelector('text=Plan de desarrollo');
+  await page.selectOption('#pl-focus', 'pac').catch(() => page.selectOption('#pl-focus', 'div'));
+  await click('form[data-submit="plan"] button[type=submit]');
+  await click('[data-act="talk"][data-k="praise"]');
+  await page.waitForSelector('.sheet >> text=Moral');
+  await snap('07b-charla');
+  await click('.sheet [data-act="sheet-close"]');
+  await page.evaluate(() => { const s = MCM.app.s; MCM.life.maybePress(s, Object.assign({}, MCM.career.lastUserFixture(s), { id: 'forzada-prensa-1' })); if (!s.press) MCM.life.maybePress(s, Object.assign({}, MCM.career.lastUserFixture(s), { id: 'forzada-prensa-3' })); });
+  const hasPress = await page.evaluate(() => !!MCM.app.s.press);
+  if (hasPress) {
+    await click('[data-act="tab"][data-view="hub"]');
+    await click('[data-act="press-open"]');
+    await snap('07c-prensa');
+    await click('form[data-submit="press"] button[type=submit]');
+    if (await page.evaluate(() => !!MCM.app.s.press)) throw new Error('La rueda de prensa no se cerró');
+  }
+
   step('tácticas');
   await click('[data-act="tab"][data-view="menu"]');
   await snap('06-menu');

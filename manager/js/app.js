@@ -266,6 +266,8 @@
       ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation, 'tactics', null],
       ['calendar', 'Calendario y resultados', 'Jornadas y crónicas', 'calendar', null],
       ['table', 'Clasificación', 'Tablas y goleadores', 'table', null],
+      ['training', 'Entrenamiento', 'Intensidad y planes de desarrollo', 'tactics', null],
+      ['scouting', 'Ojeadores', 'Informes y promesas', 'free', null],
       ['youth', 'Cantera y jóvenes promesas', (s.dev ? s.dev.academy.length : 0) + ' en la cantera', 'youth', 3],
       ['finance', 'Finanzas y contratos', U.money(s.clubs[s.clubId].budget) + ' para fichajes', 'money', 2],
       ['news', 'Noticias', s.news.filter((n) => !n.read).length + ' sin leer', 'news', null],
@@ -476,7 +478,7 @@
     'confirm-yes': async () => { const fn = pendingConfirm; pendingConfirm = null; closeSheet(); if (fn) await fn(); },
     tab: (d) => { App.go(d.view, {}, { root: true }); },
     nav: (d) => {
-      if (['hub', 'squad', 'calendar', 'table', 'menu', 'tactics', 'club', 'finance', 'market', 'freeagents', 'youth', 'news', 'manager', 'awards'].includes(d.view) && !App.s) { toast('Abre o crea una carrera primero.'); return; }
+      if (['hub', 'squad', 'calendar', 'table', 'menu', 'tactics', 'club', 'finance', 'market', 'freeagents', 'youth', 'news', 'manager', 'awards', 'training', 'scouting'].includes(d.view) && !App.s) { toast('Abre o crea una carrera primero.'); return; }
       App.go(d.view, {});
     },
     'new-career': () => { App.ui.newClub = null; App.go('newCareer', {}); },
