@@ -570,7 +570,7 @@
       (prov && prov.kind === 'memory' ? '<p class="notice">Este navegador no permite guardar datos. La partida se perderá al cerrar la página.</p>' : '') + '</section>';
     if (App.s) {
       html += '<section class="card"><h3>Exportar carrera abierta</h3><p class="small muted">Genera una copia en texto de «' + esc(App.s.name) + '». Guárdala en Notas o Archivos del iPhone para restaurarla después.</p>' +
-        '<div class="btn-row"><button class="btn sm" data-act="export-copy">Copiar al portapapeles</button><button class="btn sm" data-act="export-download">Descargar archivo</button></div>' +
+        '<div class="btn-row"><button class="btn sm" data-act="export-copy">Copiar al portapapeles</button>' + (canDownload() ? '<button class="btn sm" data-act="export-download">Descargar archivo</button>' : '') + '</div>' +
         '<textarea class="input" id="export-box" readonly hidden></textarea></section>';
     }
     html += '<section class="card"><h3>Importar carrera</h3><p class="small muted">Se importa como una carrera nueva; no sustituye a ninguna existente.</p>' +
@@ -587,6 +587,9 @@
       '<div><span class="pill mute">Después</span> Etapa 5 · Datos ampliados, pruebas, publicación e instalación en el iPhone.</div></div></section>';
     return { title: 'Ajustes', sub: 'Versión Etapa 1', html, tabs: !!App.s };
   };
+
+  // Dentro de un visor incrustado (vista previa) las descargas están bloqueadas.
+  function canDownload() { try { return window.self === window.top; } catch (e) { return false; } }
 
   // ---------- Acciones ----------
   async function refreshMetas() { App.metas = await MCM.store.list(); }
