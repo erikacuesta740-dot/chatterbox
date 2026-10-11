@@ -1,0 +1,75 @@
+/* Serie B 2025/26 — clubes y plantillas según el conocimiento del asistente, NO verificados. Medias y potenciales estimados (no son de EA SPORTS FC). */
+(function (MCM) {
+  'use strict';
+  MCM.DATA.addLeague({
+    id: 'ITA2', name: 'Serie B', country: 'Italia', nat: 'ITA', tier: 2,
+    upper: 'ITA1', upperRelegate: 3, promote: 2, playoff: 'ita', wealth: 0.3,
+    clubs: [
+      ['Palermo FC', 'PAL', 62, 'Renzo Barbera', '#f4a6c1', '#000000'],
+      ['Venezia', 'VEN', 63, 'Pier Luigi Penzo', '#f47920', '#00703c'],
+      ['Monza', 'MON', 63, 'U-Power Stadium', '#e2001a', '#ffffff'],
+      ['Empoli', 'EMP', 62, 'Carlo Castellani', '#0057b8', '#ffffff'],
+      ['Sampdoria', 'SAM', 61, 'Luigi Ferraris', '#1b5faa', '#ffffff'],
+      ['Spezia', 'SPE', 57, 'Alberto Picco', '#ffffff', '#000000'],
+      ['Frosinone', 'FRO', 56, 'Benito Stirpe', '#ffd200', '#0047ab'],
+      ['Bari', 'BAR', 56, 'San Nicola', '#ffffff', '#e2001a'],
+      ['Modena', 'MOD', 55, 'Alberto Braglia', '#ffd200', '#003399'],
+      ['Catanzaro', 'CTZ', 55, 'Nicola Ceravolo', '#ffd200', '#c8102e'],
+      ['Cesena', 'CES', 54, 'Dino Manuzzi', '#ffffff', '#000000'],
+      ['Padova', 'PAD', 53, 'Euganeo', '#ffffff', '#c8102e'],
+      ['Reggiana', 'REG', 52, 'Città del Tricolore', '#8b1a1a', '#ffffff'],
+      ['Südtirol', 'SUD', 52, 'Druso', '#c8102e', '#ffffff'],
+      ['Juve Stabia', 'JST', 52, 'Romeo Menti', '#ffd200', '#003399'],
+      ['Mantova', 'MAN', 52, 'Danilo Martelli', '#ffffff', '#c8102e'],
+      ['Pescara', 'PES', 52, 'Adriatico', '#ffffff', '#4fa3e0'],
+      ['Carrarese', 'CAR', 51, 'Dei Marmi', '#ffd200', '#0047ab'],
+      ['Avellino', 'AVE', 51, 'Partenio', '#00843d', '#ffffff'],
+      ['Virtus Entella', 'ENT', 50, 'Comunale di Chiavari', '#4fa3e0', '#ffffff'],
+    ],
+  }, {
+    'palermo-fc': [
+      'Jesse Joronen|POR|1993|71|71|FIN', 'Niccolò Pierozzi|LD|2001|68|71|ITA', 'Pietro Ceccaroni|DFC|1995|68|68|ITA',
+      'Giangiacomo Magnani|DFC|1995|68|68|ITA', 'Tommaso Augello|LI|1994|69|69|ITA',
+      'Claudio Gomes|MCD|2000|70|72|FRA', 'Alexis Blin|MCD|1996|67|67|FRA', 'Jacopo Segre|MC|1997|70|70|ITA',
+      'Filippo Ranocchia|MC|2001|70|73|ITA', 'Antonio Palumbo|MC|1996|69|69|ITA', 'Jérémy Le Douaron|ED|1998|70|71|FRA',
+      'Francesco Di Mariano|ED|1996|67|67|ITA', 'Federico Di Francesco|EI|1994|68|68|ITA', 'Matteo Brunori|DC|1994|70|70|ITA',
+      'Joel Pohjanpalo|DC|1994|74|74|FIN',
+    ],
+    'venezia': [
+      'Antonio Candela|LD|2000|68|70|ITA', 'Joel Schingtienne|DFC|2002|69|73|BEL', 'Michael Svoboda|DFC|1998|70|71|AUT',
+      'Marin Šverko|DFC|1998|68|69|CRO', 'Ridgeciano Haps|LI|1993|68|68|SUR', 'Issa Doumbia|MC|2003|70|75|ITA',
+      'Gianluca Busio|MC|2002|71|74|USA', 'Alfred Duncan|MC|1993|69|69|GHA', 'Kike Pérez|MC|1997|69|69|ESP',
+      'Bjarki Steinn Bjarkason|MD|2000|67|69|ISL', 'John Yeboah|ED|2000|70|72|ECU', 'Andrea Adorante|DC|2000|70|72|ITA',
+    ],
+    'monza': [
+      'Demba Thiam|POR|1998|68|69|SEN', 'Semuel Pizzignacco|POR|2001|66|70|ITA', 'Samuele Birindelli|LD|1999|70|71|ITA',
+      'Luca Caldirola|DFC|1991|68|68|ITA', 'Andrea Carboni|DFC|2001|69|72|ITA', 'Giorgos Kyriakopoulos|LI|1996|70|70|GRE',
+      'Patrick Ciurria|MD|1995|69|69|ITA', 'Keita Baldé|EI|1995|69|69|SEN', 'Dany Mota|DC|1998|70|71|POR',
+      'Andrea Petagna|DC|1995|70|70|ITA',
+    ],
+    'empoli': [
+      'Tyronne Ebuehi|LD|1995|67|67|NGA', 'Nicolas Haas|MC|1996|68|68|SUI', 'Stiven Shpendi|DC|2003|67|72|ALB',
+    ],
+    'sampdoria': [
+      'Alex Ferrari|DFC|1994|67|67|ITA', 'Fabio Depaoli|LD|1997|67|67|ITA', 'Gerard Yepes|MC|2002|67|71|ESP',
+      'Estanis Pedrola|EI|2003|68|73|ESP', 'Massimo Coda|DC|1988|69|69|ITA',
+    ],
+    'spezia': [
+      'Przemysław Wiśniewski|DFC|1998|68|69|POL', 'Petko Hristov|DFC|1999|67|68|BUL', 'Salvatore Esposito|MC|2000|70|71|ITA',
+    ],
+    'frosinone': [],
+    'bari': [],
+    'modena': [],
+    'catanzaro': ['Pietro Iemmello|DC|1992|69|69|ITA'],
+    'cesena': [],
+    'padova': [],
+    'reggiana': [],
+    'sudtirol': [],
+    'juve-stabia': [],
+    'mantova': ['Leonardo Mancuso|DC|1992|67|67|ITA'],
+    'pescara': [],
+    'carrarese': [],
+    'avellino': [],
+    'virtus-entella': [],
+  });
+})(globalThis.MCM = globalThis.MCM || {});

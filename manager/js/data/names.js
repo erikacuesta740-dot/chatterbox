@@ -84,6 +84,8 @@
     ANG: ['af', 'Angola'], BDI: ['af', 'Burundi'], BEN: ['af', 'Benín'], GAB: ['af', 'Gabón'], ZAM: ['af', 'Zambia'],
     JOR: ['ar', 'Jordania'], MNE: ['sl', 'Montenegro'], PAN: ['la', 'Panamá'], SUR: ['nl', 'Surinam'],
     BIH: ['sl', 'Bosnia y Herzegovina'], EST: ['no', 'Estonia'], FIN: ['no', 'Finlandia'],
+    LUX: ['fr', 'Luxemburgo'], ISR: ['ar', 'Israel'],
+    ARM: ['sl', 'Armenia'], LTU: ['sl', 'Lituania'], EQG: ['af', 'Guinea Ecuatorial'], IDN: ['jp', 'Indonesia'],
   };
 
   // Extranjeros habituales por liga (ponderación aproximada)
