@@ -22,7 +22,7 @@
     'fc-copenhague': [
       'Dominik Kotarski|POR|2000|72|76|CRO', 'Nathan Trott|POR|1998|68|70|ENG', 'Rúnar Alex Rúnarsson|POR|1995|64|64|ISL',
       'Pantelis Hatzidiakos|DFC|1997|72|73|GRE', 'Gabriel Pereira|DFC|2001|71|75|BRA', 'Junnosuke Suzuki|DFC|2003|68|74|JPN',
-      'Munashe Garananga|DFC|2001|66|71|ZIM', 'Giorgi Gocholeishvili|LD|2001|68|72|GEO', 'Marcos López|LI|1999|69|71|PER',
+      'Munashe Garananga|DFC|2001|66|71|ZIM', 'Marcos López|LI|1999|69|71|PER',
       'Birger Meling|LI|1994|69|69|NOR', 'Thomas Delaney|MCD|1991|71|71|DEN', 'Lukas Lerager|MC|1993|71|71|DEN',
       'Magnus Mattsson|MCO|1999|72|73|DEN', 'Viktor Claesson|MCO|1992|70|70|SWE', 'William Clem|MC|2004|66|74|DEN',
       'Mohamed Elyounoussi|EI|1994|72|72|NOR', 'Elias Achouri|ED|1999|70|72|TUN', 'Jordan Larsson|DC|1997|72|72|SWE',
@@ -34,16 +34,16 @@
       'Mads Bech Sørensen|DFC|1999|70|71|DEN', 'Ousmane Diao|DFC|2003|70|76|SEN', 'Martin Erlić|DFC|1998|71|72|CRO',
       'Kevin Mbabu|LD|1995|70|70|SUI', 'Joel Andersson|LD|1996|68|68|SWE', 'Paulinho|LI|2000|70|72|BRA',
       'Adam Gabriel|LD|2001|66|69|CZE', 'Victor Bak|LI|2003|64|70|DEN', 'Denil Castillo|MCD|2004|69|76|ECU',
-      'Oliver Sørensen|MC|2002|68|73|DEN', 'Valdemar Byskov|MC|2005|63|72|DEN', 'Philip Billing|MC|1996|72|72|DEN',
+      'Valdemar Byskov|MC|2005|63|72|DEN', 'Philip Billing|MC|1996|72|72|DEN',
       'Aral Şimşir|ED|2002|72|76|TUR', 'Dario Osorio|ED|2004|71|78|CHI', 'Edward Chilufya|EI|1999|68|69|ZAM',
       'Franculino Djú|DC|2004|71|78|GNB', 'Cho Gue-sung|DC|1998|70|70|KOR', 'Mikel Gogorza|EI|2004|66|74|ESP',
       'Junior Brumado|DC|1999|66|67|BRA',
     ],
-    'brondby': [
+    'br-ndby': [
       'Patrick Pentz|POR|1997|70|72|AUT', 'Jacob Rasmussen|DFC|1997|69|69|DEN', 'Rasmus Lauritsen|DFC|1996|68|68|DEN',
       'Frederik Alves|DFC|1999|67|69|DEN', 'Kevin Tshiembe|DFC|2003|66|72|DEN', 'Sean Klaiber|LD|1994|66|66|NED',
       'Daniel Wass|MC|1989|69|69|DEN', 'Benjamin Tahirović|MC|2003|68|74|BIH', 'Clement Bischoff|MC|2005|65|75|DEN',
-      'Noah Nartey|MC|2005|64|74|DEN', 'Nicolai Vallys|MCO|1996|70|70|DEN', 'Mathias Kvistgaarden|DC|2002|70|74|DEN',
+      'Noah Nartey|MC|2005|64|74|DEN', 'Nicolai Vallys|MCO|1996|70|70|DEN', 
       'Filip Bundgaard|ED|2004|63|71|DEN', 'Ohi Omoijuanfo|DC|1994|65|65|NOR',
     ],
     'agf': [
@@ -52,15 +52,15 @@
       'Kristian Arnstad|MC|2003|66|72|NOR', 'Tobias Bech|ED|2002|67|71|DEN', 'Patrick Mortensen|DC|1989|68|68|DEN',
       'Mikkel Duelund|MCO|1997|66|66|DEN', 'Gift Links|ED|1998|67|68|RSA',
     ],
-    'fc-nordsjaelland': [
-      'Jeppe Tverskov|MCD|1993|67|67|DEN', 'Oliver Villadsen|LD|1999|65|67|DEN', 'Emiliano Marcondes|MCO|1995|67|67|DEN',
+    'fc-nordsj-lland': [
+      'Jeppe Tverskov|MCD|1993|67|67|DEN', 'Oliver Villadsen|LD|1999|65|67|DEN',
       'Prince Amoako Junior|MC|2005|64|74|GHA',
     ],
     'randers-fc': [],
     'viborg-ff': [],
     'silkeborg-if': [],
     'ob': [],
-    'sonderjyske': [],
+    's-nderjyske': [],
     'vejle-bk': [],
     'fc-fredericia': [],
   });

@@ -64,7 +64,7 @@
     ],
     'al-ettifaq': [
       'Marek Rodák|POR|1996|74|75|SVK', 'Jack Hendry|DFC|1995|73|73|SCO', 'Francisco Calvo|DFC|1992|71|71|CRC',
-      'Álvaro Medrán|MC|1994|73|73|ESP', 'Georginio Wijnaldum|MC|1990|77|77|NED', 'Demarai Gray|EI|1996|74|74|ENG',
+      'Álvaro Medrán|MC|1994|73|73|ESP', 'Georginio Wijnaldum|MC|1990|77|77|NED',
       'Moussa Dembélé|DC|1996|76|76|FRA',
     ],
     'al-shabab': [
