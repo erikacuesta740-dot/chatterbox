@@ -23,7 +23,7 @@ test('fichaje completo: club y jugador, dinero y plantillas coherentes', () => {
   assert.strictEqual(T.offerContract(s, p.id, d).status, 'done');
   assert.strictEqual(p.clubId, s.clubId);
   assert.ok(s.clubs[s.clubId].squad.includes(p.id) && !s.clubs[from].squad.includes(p.id));
-  assert.strictEqual(s.clubs[s.clubId].budget, budget0 - talk.asking - d.bonus);
+  assert.strictEqual(s.clubs[s.clubId].budget, budget0 - talk.asking - d.bonus - d.wage * 52, 'traspaso + prima + un año de salario');
   assert.strictEqual(s.clubs[from].budget, fromBudget0 + talk.asking);
   assert.strictEqual(p.wage, d.wage);
   assert.strictEqual(s.transfers[0].type, 'buy');
@@ -46,15 +46,18 @@ test('reglas económicas: presupuesto, tope salarial y plantilla máxima', () =>
     const big = T.offerClub(s, star.id, s.clubs[s.clubId].budget + 1);
     assert.ok(big.error && /presupuesto/i.test(big.error));
   }
-  // Tope salarial
+  // Presupuesto único: traspaso + prima + un año de salario
   const fa = s.freeAgents.map((id) => s.players[id]).sort((a, b) => b.ovr - a.ovr)[0];
   T.start(s, fa.id, 'free');
-  s.clubs[s.clubId].wageBudget = C.wageBill(s, s.clubId) + 10;
-  const res = T.offerContract(s, fa.id, T.talkFor(s, fa.id).demand);
-  assert.ok(res.error && /salarial/.test(res.error));
-  // Reasignar presupuesto lo arregla
-  assert.strictEqual(T.convertBudget(s, 10e6), null);
-  assert.ok(T.wageRoom(s) >= Math.floor(10e6 / 52));
+  const dem = T.talkFor(s, fa.id).demand;
+  s.clubs[s.clubId].budget = dem.bonus + dem.wage * 52 - 1;
+  const res = T.offerContract(s, fa.id, dem);
+  assert.ok(res.error && /presupuesto/i.test(res.error));
+  s.clubs[s.clubId].budget = dem.bonus + dem.wage * 52 + 5e6;
+  const ok = T.offerContract(s, fa.id, dem);
+  assert.strictEqual(ok.status, 'done');
+  assert.ok(Math.abs(s.clubs[s.clubId].budget - 5e6) < 1, 'descuenta prima y un año de salario: ' + s.clubs[s.clubId].budget);
+  assert.strictEqual(s.clubs[s.clubId].wageBudget, C.wageBill(s, s.clubId));
   // Plantilla máxima
   while (s.clubs[s.clubId].squad.length < T.MAX_SQUAD) { const x = s.freeAgents[0]; C.movePlayer(s, s.players[x], s.clubId); }
   const fa2 = s.players[s.freeAgents[0]];
@@ -88,8 +91,9 @@ test('ventas, cesiones, rescisiones y renovaciones', () => {
   // Fuerza una oferta
   s.market.offers.unshift({ id: 'oX', pid: p.id, clubId: 'real-oviedo', type: 'buy', fee: 2e6, maxFee: 2.5e6, expiresMd: 5, status: 'pending', md: 0 });
   const b0 = s.clubs[s.clubId].budget;
+  const w0 = p.wage;
   assert.strictEqual(T.respondOffer(s, 'oX', 'counter', 2.4e6).status, 'accepted');
-  assert.strictEqual(s.clubs[s.clubId].budget, b0 + 2.4e6);
+  assert.strictEqual(s.clubs[s.clubId].budget, b0 + 2.4e6 + w0 * 52, 'venta + su año de salario');
   assert.strictEqual(p.clubId, 'real-oviedo');
   const y = C.squad(s, s.clubId).sort((a, b) => a.age - b.age)[0];
   assert.strictEqual(T.loanOut(s, y.id).status, 'done');

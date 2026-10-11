@@ -44,7 +44,7 @@
     const club = s.clubs[s.clubId];
     const conf = Math.round(s.dev ? s.dev.confidence : 60);
     const block = '<section class="card"><div class="section-head"><h3>Despacho</h3>' + windowChip(s) + '</div>' +
-      '<div class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(club.budget) + '</b></div><div><span>Margen salarial</span><b>' + U.wage(Math.max(0, T.wageRoom(s))) + '</b></div></div>' +
+      '<div class="kv"><div><span>Presupuesto</span><b>' + U.money(club.budget) + '</b></div><div><span>Masa salarial</span><b>' + U.wage(C.wageBill(s, s.clubId)) + '</b></div></div>' +
       '<div class="attr"><span>Directiva</span>' + UI.bar(conf, 100, conf < 30 ? 'bad' : conf < 55 ? 'warn' : '') + '<b>' + conf + '</b></div>' +
       (pend.length ? '<button class="btn primary block" data-act="nav" data-view="market" data-tab="offers">' + icon('transfer') + pend.length + (pend.length > 1 ? ' ofertas recibidas' : ' oferta recibida') + '</button>' : '') +
       '</section>';
@@ -145,7 +145,8 @@
     const club = p.clubId ? s.clubs[p.clubId] : null;
     let html = '<div class="section-head"><h2>' + esc(KIND_LABEL[t.kind]) + ': ' + esc(p.name) + '</h2>' + UI.ovr(p.ovr) + '</div>' +
       '<p class="small">' + refLine(s, p) + '</p>' +
-      '<div class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(s.clubs[s.clubId].budget) + '</b></div><div><span>Margen salarial</span><b>' + U.wage(Math.max(0, T.wageRoom(s))) + '</b></div></div>';
+      '<div class="kv"><div><span>Presupuesto</span><b>' + U.money(s.clubs[s.clubId].budget) + '</b></div><div><span>Masa salarial</span><b>' + U.wage(C.wageBill(s, s.clubId)) + '</b></div></div>' +
+      '<p class="small muted">El presupuesto es único: paga el traspaso, la prima y un año del salario que añadas.</p>';
     if (t.rounds.length) {
       html += '<div class="stack small">' + t.rounds.map((r) => '<div class="row" style="align-items:flex-start"><b style="width:64px;flex:none">' + esc(r.by === 'tú' ? 'Tú' : r.by === 'club' ? 'Club' : 'Jugador') + '</b><span class="grow">' +
         [r.fee != null ? 'Traspaso ' + U.money(r.fee) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
@@ -221,7 +222,7 @@
     if (params && params.tab) { f.tab = params.tab; params.tab = null; }
     const club = s.clubs[s.clubId];
     const pend = s.market.offers.filter((o) => o.status === 'pending');
-    let html = '<section class="card"><div class="row wrap">' + windowChip(s) + '</div><div class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(club.budget) + '</b></div><div><span>Margen salarial</span><b>' + U.wage(Math.max(0, T.wageRoom(s))) + '</b></div></div>' +
+    let html = '<section class="card"><div class="row wrap">' + windowChip(s) + '</div><div class="kv"><div><span>Presupuesto</span><b>' + U.money(club.budget) + '</b></div><div><span>Masa salarial</span><b>' + U.wage(C.wageBill(s, s.clubId)) + '</b></div></div>' +
       '<p class="small muted">Plantilla: ' + club.squad.length + '/' + T.MAX_SQUAD + '. Fuera de ventana solo puedes fichar agentes libres y renovar.</p></section>' +
       '<div class="chips">' + [['search', 'Buscar'], ['offers', 'Ofertas recibidas' + (pend.length ? ' (' + pend.length + ')' : '')], ['talks', 'Negociaciones'], ['short', 'Seguimiento'], ['moves', 'Movimientos']].map((t) => '<button class="chip ' + (f.tab === t[0] ? 'on' : '') + '" data-act="mk-tab" data-v="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>';
     if (f.tab === 'search') html += searchTab(s, f);
@@ -372,11 +373,8 @@
     const squad = C.squad(s, club.id).sort((a, b) => a.contractEnd - b.contractEnd || b.wage - a.wage);
     const endYear = s.season.year + 1;
     const line = (label, v, neg) => '<div class="row small"><span class="grow">' + label + '</span><b class="num" style="color:' + (neg ? 'var(--bad)' : 'inherit') + '">' + (neg && v ? '-' : '') + U.money(v) + '</b></div>';
-    let html = '<section class="kv"><div><span>Presupuesto fichajes</span><b>' + U.money(club.budget) + '</b></div><div><span>Presupuesto salarial</span><b>' + U.wage(club.wageBudget) + '</b></div>' +
-      '<div><span>Masa salarial</span><b>' + U.wage(bill) + '</b></div><div><span>Margen salarial</span><b>' + U.wage(Math.max(0, club.wageBudget - bill)) + '</b></div></section>' +
-      '<section class="card"><h3>Reasignar presupuesto</h3><p class="small muted">1 € de salario semanal equivale a ' + T.WAGE_TO_BUDGET + ' € del presupuesto de fichajes. Solo puedes devolver a fichajes el margen salarial no usado.</p>' +
-      '<form class="stack" data-submit="convert"><label class="field" for="cv-amount">Cantidad de presupuesto de fichajes (€)<input class="input" id="cv-amount" name="amount" type="number" inputmode="numeric" step="100000" value="1000000"></label>' +
-      '<div class="btn-row"><button class="btn sm" type="submit" name="dir" value="toWage">Pasar a salarios</button><button class="btn sm" type="submit" name="dir" value="toBudget">Pasar a fichajes</button></div></form></section>' +
+    let html = '<section class="kv"><div><span>Presupuesto</span><b>' + U.money(club.budget) + '</b></div><div><span>Masa salarial</span><b>' + U.wage(bill) + '</b></div></section>' +
+      '<p class="small muted">Un único presupuesto para traspasos, primas y salarios. Al fichar o renovar con subida se reserva un año del salario nuevo; cuando un jugador sale vendido o cedido, su año de salario vuelve al presupuesto.</p>' +
       '<section class="card"><h3>Temporada ' + esc(fin.season) + '</h3>' +
       line('Taquilla', fin.income.tickets) + line('Ventas y cesiones', fin.income.sales) + line('Derechos de TV y premios (al final)', fin.income.tv + fin.income.prizes) +
       line('Salarios pagados', fin.expense.wages, true) + line('Traspasos', fin.expense.transfers, true) + line('Primas de fichaje y renovación', fin.expense.bonuses, true) + line('Rescisiones', fin.expense.releases, true) +
@@ -392,15 +390,7 @@
     }
     return { title: 'Finanzas y contratos', sub: club.name, html };
   };
-  F.convert = async (fd, form, ev) => {
-    const amount = Math.abs(Number(fd.get('amount') || 0));
-    const dir = (ev && ev.submitter && ev.submitter.value) || 'toWage';
-    const err = T.convertBudget(App.s, dir === 'toWage' ? amount : -amount);
-    if (err) { H.toast(err); return; }
-    await H.persist();
-    H.toast('Presupuesto reasignado');
-    App.render();
-  };
+
 
   // ---------- Cantera ----------
   V.youth = function () {

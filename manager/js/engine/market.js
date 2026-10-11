@@ -6,8 +6,9 @@
  *   Fuera de ventana solo se pueden fichar agentes libres y renovar.
  * - Valor de referencia: el valor de mercado FC 27 importado si existe; si no, el valor estimado del juego.
  *   El precio que pide el club, ofertas y contraofertas son cantidades aparte: NUNCA modifican el valor FC 27.
- * - Presupuesto de fichajes (dinero para traspasos y primas) y presupuesto salarial (tope de salarios semanales).
- *   No se puede cerrar una operación que supere cualquiera de los dos; se puede reasignar entre ambos (1 €/sem = 52 €).
+ * - Presupuesto único: paga traspasos, primas y salarios. Un contrato nuevo (o la subida de una renovación) reserva
+ *   un año de ese salario (1 €/sem = 52 €); cuando un jugador sale vendido o cedido, ese año vuelve al presupuesto.
+ *   No se puede cerrar una operación que supere el presupuesto.
  * - Plantilla: máximo 30 jugadores y mínimo 18. Un jugador pertenece a un único club.
  */
 (function (MCM) {
@@ -36,6 +37,7 @@
     m.aiWindows = m.aiWindows || {};
     const club = s.clubs[s.clubId];
     if (!club.wageBudget) club.wageBudget = Math.round((C().wageBill(s, s.clubId) * 1.1) / 1000) * 1000;
+    T.pool(s);
     s.transfers = s.transfers || [];
     return m;
   };
@@ -139,31 +141,27 @@
   T.squadSize = (s) => s.clubs[s.clubId].squad.length;
   T.wageRoom = (s) => s.clubs[s.clubId].wageBudget - C().wageBill(s, s.clubId);
 
+  /* Presupuesto único: el margen salarial no usado pasa al presupuesto (wageBudget queda igual a la masa salarial). */
+  T.pool = function (s) {
+    const club = s.clubs[s.clubId];
+    const room = (club.wageBudget || 0) - C().wageBill(s, s.clubId);
+    if (room > 0) club.budget += room * T.WAGE_TO_BUDGET;
+    club.wageBudget = Math.max(C().wageBill(s, s.clubId), 0);
+  };
+  /* Coste total de una operación: dinero + un año del salario que se añade. */
+  T.dealCost = (cost, extraWage) => cost + Math.max(0, extraWage) * T.WAGE_TO_BUDGET;
+
   T.checkDeal = function (s, p, cost, wage, opts) {
     opts = opts || {};
     const club = s.clubs[s.clubId];
     const errs = [];
     if (!opts.renew && T.squadSize(s) >= T.MAX_SQUAD) errs.push('La plantilla ya tiene ' + T.MAX_SQUAD + ' jugadores (máximo). Vende, cede o rescinde a alguien antes.');
-    if (cost > club.budget) errs.push('Presupuesto de fichajes insuficiente: la operación cuesta ' + U.money(cost) + ' y dispones de ' + U.money(club.budget) + '.');
     const extraWage = opts.renew ? wage - p.wage : wage;
-    if (extraWage > 0 && extraWage > T.wageRoom(s)) errs.push('Supera el presupuesto salarial: margen de ' + U.wage(Math.max(0, T.wageRoom(s))) + ' y el contrato añade ' + U.wage(extraWage) + '. Puedes reasignar presupuesto en Finanzas.');
-    return errs;
-  };
-
-  /* Reasigna entre presupuestos. amount > 0: de fichajes a salarios (€ de fichajes); amount < 0: al revés. */
-  T.convertBudget = function (s, amount) {
-    const club = s.clubs[s.clubId];
-    if (amount > 0) {
-      if (amount > club.budget) return 'No hay tanto presupuesto de fichajes.';
-      club.budget -= amount;
-      club.wageBudget += Math.floor(amount / T.WAGE_TO_BUDGET);
-    } else if (amount < 0) {
-      const weekly = Math.ceil(-amount / T.WAGE_TO_BUDGET);
-      if (weekly > T.wageRoom(s)) return 'Solo puedes liberar el margen salarial no usado (' + U.wage(Math.max(0, T.wageRoom(s))) + ').';
-      club.wageBudget -= weekly;
-      club.budget += weekly * T.WAGE_TO_BUDGET;
+    const total = T.dealCost(cost, extraWage);
+    if (total > club.budget) {
+      errs.push('Presupuesto insuficiente: la operación cuesta ' + U.money(total) + (extraWage > 0 ? ' (' + U.money(cost) + ' entre traspaso y prima + ' + U.money(extraWage * T.WAGE_TO_BUDGET) + ' de un año de salario)' : '') + ' y dispones de ' + U.money(club.budget) + '.');
     }
-    return null;
+    return errs;
   };
 
   // ---------- Negociaciones ----------
@@ -286,6 +284,19 @@
   }
 
   function complete(s, talk, offer) {
+    const club = s.clubs[s.clubId];
+    T.pool(s);
+    const before = C().wageBill(s, s.clubId);
+    const r = completeDeal(s, talk, offer);
+    const delta = C().wageBill(s, s.clubId) - before;
+    if (delta > 0) {
+      club.budget -= delta * T.WAGE_TO_BUDGET;
+      ledger(s, 'Reserva de un año de salario', -delta * T.WAGE_TO_BUDGET, 'wages');
+    }
+    T.pool(s);
+    return r;
+  }
+  function completeDeal(s, talk, offer) {
     const p = s.players[talk.pid];
     const club = s.clubs[s.clubId];
     const fin = s.market.fin;
@@ -372,6 +383,7 @@
       C().news(s, 'transfer', 'Venta: ' + p.name, p.name + ' se marcha a ' + buyer.name + ' por ' + U.money(fee) + '.', { pid: p.id });
     }
     if (club.lineup) MCM.lineup.repair(club.lineup, C().squad(s, s.clubId));
+    T.pool(s);
     s._tr = {};
   }
 
@@ -447,6 +459,7 @@
     s.market.fin.expense.releases += cost;
     ledger(s, 'Rescisión de ' + p.name, -cost, 'release');
     C().movePlayer(s, p, null);
+    club.wageBudget = Math.min(club.wageBudget, C().wageBill(s, s.clubId));
     p.listed = false;
     p.contractEnd = s.season.year + 1;
     record(s, 'release', p, s.clubId, null, cost);
@@ -580,13 +593,13 @@
     const prev = club.budget;
     club.budget = roundMoney(Math.max(0, prev) * 0.3 + base * (objectiveMet ? 0.75 : 0.55) + Math.max(0, net || 0) * 0.3);
     const bill = C().wageBill(s, s.clubId);
-    club.wageBudget = Math.max(Math.round(bill * 1.05 / 1000) * 1000, club.wageBudget || 0);
+    club.wageBudget = bill;
     s.market.fin = T.emptyFin(C().seasonLabel(s.season.year + 1));
     s.market.offers = s.market.offers.filter((o) => o.status === 'pending' && false);
     s.market.talks = {};
     s.market.blocked = {};
     C().news(s, 'board', 'Presupuestos ' + C().seasonLabel(s.season.year + 1),
-      'Presupuesto de fichajes: ' + U.money(club.budget) + '. Presupuesto salarial: ' + U.wage(club.wageBudget) + '.');
+      'Presupuesto: ' + U.money(club.budget) + ' para fichajes, primas y salarios. Masa salarial actual: ' + U.wage(bill) + '.');
   };
 
   /* Fin de temporada: cesiones que vuelven y contratos del usuario que expiran. Antes de envejecer. */
@@ -612,6 +625,8 @@
         leaving.push(p.name);
       }
     });
+    const club = s.clubs[s.clubId];
+    club.wageBudget = Math.min(club.wageBudget, C().wageBill(s, s.clubId));
     if (leaving.length) C().news(s, 'contract', 'Se marchan libres', leaving.join(', ') + (leaving.length > 1 ? ' terminan contrato y se van' : ' termina contrato y se va') + ' como agente libre.');
     return leaving;
   };
