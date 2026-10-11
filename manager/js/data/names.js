@@ -89,6 +89,7 @@
     PER: ['la', 'Perú'], GNB: ['pt', 'Guinea-Bisáu'], IRN: ['ar', 'Irán'],
     ARM: ['sl', 'Armenia'], LTU: ['sl', 'Lituania'], EQG: ['af', 'Guinea Ecuatorial'], IDN: ['jp', 'Indonesia'],
     LBR: ['af', 'Liberia'], AZE: ['ar', 'Azerbaiyán'],
+    KSA: ['ar', 'Arabia Saudí'], PLE: ['ar', 'Palestina'], CRC: ['la', 'Costa Rica'], GUA: ['la', 'Guatemala'], SLV: ['la', 'El Salvador'],
   };
 
   // Extranjeros habituales por liga (ponderación aproximada)

@@ -2,7 +2,7 @@
 (function (MCM) {
   'use strict';
   MCM.DATA.addLeague({
-    id: 'USA1', name: 'MLS', country: 'Estados Unidos', nat: 'USA', tier: 1,
+    id: 'USA1', singleRound: true, name: 'MLS', country: 'Estados Unidos', nat: 'USA', tier: 1,
     uefa: false, wealth: 0.6,
     clubs: [
       // [name, short, reputation, stadium, color1, color2]
@@ -42,7 +42,7 @@
       'Óscar Ustari|POR|1986|70|70|ARG', 'Marcelo Weigandt|LD|2000|69|71|ARG', 'Maximiliano Falcón|DFC|1997|70|70|URU',
       'Gonzalo Luján|DFC|2001|69|72|ARG', 'Tomás Avilés|DFC|2004|68|74|ARG', 'Noah Allen|LI|2004|67|73|USA',
       'Jordi Alba|LI|1989|76|76|ESP', 'Ian Fray|LD|2002|66|71|USA', 'Sergio Busquets|MCD|1988|77|77|ESP',
-      'Rodrigo De Paul|MC|1994|81|81|ARG', 'Federico Redondo|MCD|2003|71|77|ARG', 'Baltasar Rodríguez|MC|2003|69|75|ARG',
+      'Rodrigo De Paul|MC|1994|81|81|ARG', 'Baltasar Rodríguez|MC|2003|69|75|ARG',
       'Telasco Segovia|MC|2003|71|76|VEN', 'Tadeo Allende|ED|1999|73|74|ARG', 'Fafà Picault|ED|1991|68|68|HAI',
       'Mateo Silvetti|EI|2006|67|77|ARG', 'Lionel Messi|ED|1987|86|86|ARG', 'Luis Suárez|DC|1987|76|76|URU',
     ],
@@ -80,7 +80,7 @@
     ],
     'philadelphia-union': [
       'Andre Blake|POR|1990|73|73|JAM', 'Nathan Harriel|LD|2001|68|71|USA', 'Jakob Glesnes|DFC|1994|72|72|NOR',
-      'Olwethu Makhanya|DFC|2004|66|72|RSA', 'Kai Wagner|LI|1997|72|72|GER', 'Jovan Lukić|MCD|2001|69|72|SRB',
+      'Olwethu Makhanya|DFC|2004|66|72|RSA', 'Jovan Lukić|MCD|2001|69|72|SRB',
       'Danley Jean Jacques|MCD|2000|70|72|HAI', 'Alejandro Bedoya|MC|1987|66|66|USA', 'Quinn Sullivan|MC|2004|69|75|USA',
       'Cavan Sullivan|MCO|2009|60|80|USA', 'Indiana Vassilev|ED|2001|68|70|USA', 'Mikael Uhre|DC|1994|70|70|DEN',
       'Tai Baribo|DC|1998|72|73|ISR', 'Bruno Damiani|DC|2002|69|74|URU',
@@ -89,7 +89,7 @@
       'Yohei Takaoka|POR|1996|72|72|JPN', 'Tristan Blackmon|DFC|1996|70|70|USA', 'Ranko Veselinović|DFC|1999|69|71|SRB',
       'Mathías Laborda|LI|1999|69|71|URU', 'Édier Ocampo|LD|2003|67|73|COL', 'Andrés Cubas|MCD|1996|72|72|PAR',
       'Sebastian Berhalter|MC|2001|71|74|USA', 'Pedro Vite|MCO|2002|68|72|ECU', 'Ryan Gauld|MCO|1995|75|75|SCO',
-      'Thomas Müller|MCO|1989|80|80|GER', 'Ali Ahmed|EI|2000|69|71|CAN', 'Jayden Nelson|ED|2002|67|71|CAN',
+      'Thomas Müller|MCO|1989|80|80|GER', 'Jayden Nelson|ED|2002|67|71|CAN',
       'Emmanuel Sabbi|ED|1997|67|67|USA', 'Brian White|DC|1996|72|72|USA',
     ],
     'new-york-city-fc': [
@@ -188,7 +188,7 @@
     'colorado-rapids': [
       'Zack Steffen|POR|1995|70|70|USA', 'Reggie Cannon|LD|1998|68|69|USA', 'Andreas Maxsø|DFC|1994|70|70|DEN',
       'Sam Vines|LI|1999|67|68|USA', 'Connor Ronan|MC|1998|70|70|IRL', 'Oliver Larraz|MC|2001|67|70|USA',
-      'Cole Bassett|MCO|2001|69|71|USA', 'Paxten Aaronson|MCO|2003|70|74|USA', 'Kévin Cabral|EI|1999|67|68|FRA',
+      'Cole Bassett|MCO|2001|69|71|USA', 'Kévin Cabral|EI|1999|67|68|FRA',
       'Rafael Navarro|DC|2000|72|74|BRA', 'Darren Yapi|DC|2004|65|71|USA',
     ],
     'fc-dallas': [
@@ -200,7 +200,7 @@
       'Matt Turner|POR|1994|72|72|USA', 'Aljaž Ivačič|POR|1993|67|67|SVN', 'Brandon Bye|LD|1995|67|67|USA',
       'Ilay Feingold|LD|2004|66|72|ISR', 'Mamadou Fofana|DFC|1998|67|68|MLI', 'Matt Polster|MCD|1993|67|67|USA',
       'Alhassan Yusuf|MC|2000|69|71|NGA', 'Carles Gil|MCO|1992|76|76|ESP', 'Luca Langoni|EI|2002|67|72|ARG',
-      'Tomás Chancalay|EI|1999|70|71|ARG', 'Ignatius Ganago|DC|1999|67|68|CMR', 'Leo Campana|DC|2000|69|71|ECU',
+      'Tomás Chancalay|EI|1999|70|71|ARG', 'Leo Campana|DC|2000|69|71|ECU',
     ],
     'sporting-kansas-city': [
       'John Pulskamp|POR|2001|66|70|USA', 'Logan Ndenbe|LI|2000|66|68|BEL', 'Dany Rosero|DFC|1993|66|66|COL',
