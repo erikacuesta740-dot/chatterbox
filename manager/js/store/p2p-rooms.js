@@ -136,9 +136,11 @@
       res.then((err) => send(conn, { t: 'joinResult', ok: !err, error: err || null }));
     } else if (msg.t === 'orders') {
       r.orders[msg.uid] = msg.orders;
+    } else if (msg.t === 'act') {
+      P.applyActs(r, msg.uid, msg.acts);
     } else if (msg.t === 'ready') {
       if (msg.orders) r.orders[msg.uid] = msg.orders;
-      if (r.meta) { r.meta.ready = Object.assign({}, r.meta.ready, { [msg.uid]: msg.rev }); saveLocal(r); broadcast(r, false); notify(r); P.tryStep(r.code); }
+      if (r.meta) { r.meta.ready = Object.assign({}, r.meta.ready, { [msg.uid]: r.meta.rev }); saveLocal(r); broadcast(r, false); notify(r); P.tryStep(r.code); }
     } else if (msg.t === 'unready') {
       if (r.meta) { r.meta.ready = Object.assign({}, r.meta.ready, { [msg.uid]: 0 }); saveLocal(r); broadcast(r, false); notify(r); }
     }
@@ -358,11 +360,45 @@
 
   P.bothReady = RU.allReady;
 
+  /*
+   * Fichajes al momento: quien sirve la sala aplica las operaciones de mercado y publica una revisión nueva
+   * (sin jugar nada). Se reaplican las tácticas guardadas de todos; quien estaba «Listo» lo sigue estando.
+   */
+  let acting = Promise.resolve();
+  P.applyActs = function (r, uid, acts) {
+    acting = acting.then(async () => {
+      if (!r.meta || r.meta.status !== 'playing' || !r.packed) return;
+      const u = RU.me(r.meta, uid);
+      if (!u) return;
+      while (stepping) await new Promise((res) => setTimeout(res, 200));
+      const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
+      s.online = Object.assign({}, s.online || {}, { code: r.code, rev: r.meta.rev, p2p: true });
+      MCM.online.viewAs(s, (RU.me(r.meta, me.uid) || r.meta.host).clubId);
+      if (!(acts || []).some((b) => b && b.seq > MCM.online.lastSeq(s, u.clubId))) return;
+      RU.players(r.meta).forEach((x) => { if (r.orders[x.uid]) MCM.online.applyOrders(s, Object.assign({}, r.orders[x.uid], { acts: [] })); });
+      MCM.online.applyActs(s, u.clubId, acts);
+      MCM.online.viewAs(s, s.clubId);
+      const old = r.meta.rev;
+      const ready = {};
+      Object.keys(r.meta.ready || {}).forEach((k) => { ready[k] = r.meta.ready[k] === old ? old + 1 : 0; });
+      await commit(r, s, { ready });
+    }).catch(() => {});
+    return acting;
+  };
+  P.act = async function (code, acts) {
+    const r = await room(code);
+    if (r.role === 'host') { await P.applyActs(r, me.uid, acts); return { applied: true }; }
+    if (!r.conn || !r.conn.open) return { applied: false };
+    send(r.conn, { t: 'act', uid: me.uid, acts });
+    return { applied: true };
+  };
+
   let stepping = false;
   P.tryStep = async function (code) {
     const r = await room(code);
     if (r.role !== 'host' || stepping || !P.bothReady(r.meta)) return { stepped: false };
     stepping = true;
+    await acting;
     try {
       const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
       s.online = Object.assign({}, s.online || {}, { code, rev: r.meta.rev, p2p: true });

@@ -269,7 +269,7 @@ test('modo online: clubes creados con las estrellas de la sala y fichajes que vi
   assert.strictEqual(log('offerClub', target.id, st.talk.asking).status, 'accepted');
   assert.strictEqual(log('offerContract', target.id, st.talk.demand).status, 'done');
   assert.strictEqual(phone.players[target.id].clubId, def2.id);
-  const orders = O.extractOrders(phone, def2.id, actions);
+  const orders = O.extractOrders(phone, def2.id, [{ seq: 1, actions }]);
   // Quien avanza (def1) aplica las órdenes en el mundo compartido.
   s.online.rev = 5;
   s.date = phone.date;
@@ -279,10 +279,10 @@ test('modo online: clubes creados con las estrellas de la sala y fichajes que vi
   assert.strictEqual(s.players[target.id].clubId, def2.id, 'el fichaje del amigo se aplica');
   assert.strictEqual(s.clubs[def2.id].budget, phone.clubs[def2.id].budget, 'mismo presupuesto que en su móvil');
   assert.strictEqual(s.clubs[def1.id].budget, budget1);
-  // Órdenes de una jornada anterior no repiten operaciones.
-  const again = O.extractOrders(phone, def2.id, [{ fn: 'release', args: [target.id] }]);
-  again.baseRev = 4;
+  // Un lote ya aplicado no se repite (aunque vuelva a llegar con las órdenes).
+  const again = O.extractOrders(phone, def2.id, [{ seq: 1, actions: [{ fn: 'release', args: [target.id] }] }]);
   O.applyOrders(s, again);
+  assert.strictEqual(O.lastSeq(s, def2.id), 1);
   assert.strictEqual(s.players[target.id].clubId, def2.id);
   O.viewAs(s, def2.id);
   assert.strictEqual(s.clubId, def2.id);
@@ -298,6 +298,15 @@ test('cláusula de rescisión y ofertas entre amigos (el dueño decide)', () => 
   const s = O.createWorld({ leagueId: 'ESP1', clubId: 'real-madrid', seed: 'on3', code: 'TEST3' });
   O.addHuman(s, 'fc-barcelona');
   s.date = s.season.year + '-07-15';
+  // Un agente libre que ficha uno ya no lo puede fichar el otro (aunque empezara a negociar antes).
+  const fa = s.freeAgents.map((id) => s.players[id]).sort((a, b) => b.ovr - a.ovr)[0];
+  C.asUser(s, 'fc-barcelona', () => T.start(s, fa.id, 'free'));
+  const t0 = T.start(s, fa.id, 'free');
+  assert.strictEqual(T.offerContract(s, fa.id, Object.assign({}, t0.talk.demand, { bonus: t0.talk.demand.bonus * 2 })).status, 'done');
+  assert.strictEqual(fa.clubId, 'real-madrid');
+  const late = C.asUser(s, 'fc-barcelona', () => T.offerContract(s, fa.id, Object.assign({}, T.talkFor(s, fa.id).demand, { bonus: 1e7 })));
+  assert.strictEqual(late.status, 'rejected');
+  assert.strictEqual(fa.clubId, 'real-madrid', 'el amigo no se lo puede quitar');
   // Barça (amigo) quiere a un jugador del Madrid: la oferta llega al dueño, no a la IA.
   const target = C.squad(s, 'real-madrid').filter((p) => !p.loan).sort((a, b) => a.value - b.value)[5];
   const fee0 = T.askingPrice(s, target);

@@ -29,7 +29,7 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
       await all[i].click('[data-act="on-ready"]');
       if (i < all.length - 1) await all[i].waitForSelector('[data-act="on-unready"]', { timeout: 30000 });
     }
-    for (const p of all) await p.waitForFunction((r) => MCM.app.ui.online.room && MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
+    for (const p of all) await p.waitForFunction((r) => { const m = MCM.app.ui.online.room; return m && m.last && m.last.rev > r && MCM.app.s && MCM.app.s.online.rev === m.rev; }, rev0, { timeout: 30000 });
     const info = await a.evaluate(() => { const s = MCM.app.s; return s.date + ' ' + (MCM.app.ui.online.room.last.results || []).map((r) => s.clubs[r.home].short + ' ' + r.hg + '-' + r.ag + ' ' + s.clubs[r.away].short).join(', '); });
     console.log('  ', label, info);
   };
@@ -87,6 +87,9 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
       return { pid: p.id, r2: r2.status };
     });
     if (signed.r2 !== 'done') throw new Error('Fichaje: ' + JSON.stringify(signed));
+    const t0 = Date.now();
+    for (const pg of [a, c]) await pg.waitForFunction((pid) => MCM.app.s && MCM.app.s.players[pid].clubId === 'chelsea', signed.pid, { timeout: 20000 });
+    console.log('   el fichaje llega al momento a los demás en', Date.now() - t0, 'ms');
 
     step('el amigo cambia a 3-5-2');
     await b.evaluate(() => MCM.app.go('tactics', {}));

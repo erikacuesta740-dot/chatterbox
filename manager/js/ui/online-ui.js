@@ -171,8 +171,16 @@
     try {
       const s = await R.loadWorld(meta);
       if (!st.room || st.room.rev !== meta.rev) return;
+      // Mis operaciones aún no confirmadas se vuelven a hacer sobre el mundo nuevo (para verlas ya).
+      const mine = s.clubId;
+      // Mi táctica y mi once mandan siempre (pueden ser cambios que aún no ha visto la sala).
+      const old = App.s;
+      if (old && old.online && old.online.code === s.online.code && old.clubId === mine) O.applyOrders(s, O.extractOrders(old, mine, []));
+      st.acts = (st.acts || []).filter((b) => b.seq > O.lastSeq(s, mine));
+      st.acts.map((b) => b.actions).concat([st.cur || []]).forEach((list) => list.forEach((a) => {
+        try { MCM.market[a.fn].apply(null, [s].concat(a.args || [])); } catch (e) { /* ya no es posible */ }
+      }));
       App.s = s;
-      st.actions = [];
       if (App.view === 'onlineRoom' || App.view === 'hub') App.render();
     } catch (e) {
       loadingRev = 0;
@@ -231,7 +239,7 @@
     const pend = ((s.market && s.market.offers) || []).filter((o) => o.status === 'pending').length;
     const win = MCM.market.window(s);
     html += '<section class="card small"><div class="row"><span class="grow">' + (win.open ? '<b>Mercado abierto.</b> ' : 'Mercado cerrado. ') + 'Presupuesto: <b>' + U.money(myClub.budget) + '</b>' +
-      (pend ? ' · <b>' + pend + ' oferta' + (pend > 1 ? 's' : '') + ' por tus jugadores</b>' : '') + (st.actions && st.actions.length ? ' · ' + st.actions.length + ' operación(es) se aplicarán al jugar la jornada' : '') + '</span>' +
+      (pend ? ' · <b>' + pend + ' oferta' + (pend > 1 ? 's' : '') + ' por tus jugadores</b>' : '') + (pendingCount() ? ' · enviando ' + pendingCount() + ' operación(es) a la sala…' : '') + '</span>' +
       '<button class="btn sm" data-act="nav" data-view="market">Ver</button></div></section>';
     if (m.last && m.last.results && m.last.results.length) {
       const rs = m.last.results.filter((r) => s.clubs[r.home] && s.clubs[r.away]);
@@ -265,7 +273,8 @@
   A['on-ready'] = async () => {
     await H.busy('Enviando tu alineación…');
     try {
-      const r = await R.ready(st.room, O.extractOrders(App.s, App.s.clubId, st.actions));
+      await flushActs();
+      const r = await R.ready(st.room, O.extractOrders(App.s, App.s.clubId, st.acts));
       if (r.stepped) H.toast(r.result.kind === 'season' ? 'Nueva temporada' : 'Jornada jugada');
     } catch (e) { H.toast(e.message || 'No se pudo enviar'); } finally { H.unbusy(); }
   };
@@ -289,7 +298,7 @@
     const s = App.s;
     if (!s || !s.online) return;
     clearTimeout(ordersTimer);
-    ordersTimer = setTimeout(() => { R.saveOrders(s.online.code, O.extractOrders(s, s.clubId, st.actions)).catch(() => H.toast('No se pudo guardar tu alineación en la sala')); }, 600);
+    ordersTimer = setTimeout(() => { R.saveOrders(s.online.code, O.extractOrders(s, s.clubId, st.acts)).catch(() => H.toast('No se pudo guardar tu alineación en la sala')); }, 600);
   };
   const baseMenu = V.menu;
   V.menu = function (params) {
@@ -298,13 +307,37 @@
     const html = '<section class="plist">' + [['hub', 'Sala ' + s.online.code, 'Jornada y resultados'], ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation], ['squad', 'Plantilla', ''],
       ['market', 'Mercado de fichajes', MCM.market.window(s).open ? 'Ventana abierta' : 'Ventana cerrada'], ['freeagents', 'Agentes libres', s.freeAgents.length + ' sin equipo'],
       ['finance', 'Finanzas y contratos', U.money(s.clubs[s.clubId].budget) + ' para fichajes'], ['news', 'Noticias', s.news.filter((n) => !n.read).length + ' sin leer'],
-      ['calendar', 'Calendario', ''], ['table', 'Torneos', '']]
+      ['calendar', 'Calendario', ''], ['table', 'Torneos', ''], ['settings', 'Ajustes', 'Imagen de celebración y más']]
       .map(([v, t, m]) => '<button class="prow" data-act="nav" data-view="' + v + '"><span class="grow"><span class="name" style="display:block">' + esc(t) + '</span><span class="meta">' + esc(m) + '</span></span></button>').join('') + '</section>' +
       '<button class="btn ghost block" data-act="on-exit">Salir de la sala</button>';
     return { title: 'Menú', sub: 'Modo online', html };
   };
-  // Las operaciones de mercado hechas en este móvil se apuntan y viajan con tus órdenes; al avanzar se repiten en el mundo de todos.
-  st.actions = st.actions || [];
+  /*
+   * Fichajes al momento: cada operación de mercado hecha en este móvil se hace ya aquí y se manda enseguida a la
+   * sala, que la aplica en el mundo de todos (revisión nueva sin jugar). También viaja con tus órdenes por si
+   * no hubiera conexión en ese momento; cada lote se aplica una sola vez.
+   */
+  st.acts = st.acts || [];
+  st.cur = st.cur || [];
+  const pendingCount = () => st.acts.reduce((n, b) => n + b.actions.length, 0) + st.cur.length;
+  let flushTimer = null;
+  async function flushActs() {
+    clearTimeout(flushTimer);
+    const s = App.s;
+    if (!s || !s.online) { st.cur = []; return; }
+    if (st.cur.length) {
+      const seq = Math.max(O.lastSeq(s, s.clubId), st.acts.reduce((m, b) => Math.max(m, b.seq), 0)) + 1;
+      st.acts.push({ seq, actions: st.cur });
+      st.cur = [];
+    }
+    if (!st.acts.length) return;
+    try {
+      await R.saveOrders(s.online.code, O.extractOrders(s, s.clubId, st.acts));
+      const r = await R.act(s.online.code, st.acts);
+      if (!r.applied) H.toast('Sin conexión con la sala: tus fichajes se aplicarán al jugar la jornada');
+    } catch (e) { H.toast('No se pudo enviar el fichaje a la sala; se reintentará'); }
+  }
+  App.onlineFlush = flushActs;
   let depth = 0;
   O.ACTIONS.forEach((fn) => {
     const orig = MCM.market[fn];
@@ -315,7 +348,7 @@
       depth++;
       try { return orig.apply(this, arguments); } finally {
         depth--;
-        if (log) { st.actions.push({ fn, args }); App.onlinePersist(); }
+        if (log) { st.cur.push({ fn, args }); clearTimeout(flushTimer); flushTimer = setTimeout(flushActs, 700); }
       }
     };
     wrapped.__logged = true;

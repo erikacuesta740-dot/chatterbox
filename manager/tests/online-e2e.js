@@ -121,11 +121,17 @@ const MOCK = ({ uid, name }) => {
       const p = MCM.career.squad(s, s.leagues.ESP2.clubIds.filter((id) => !s.humans.includes(id))[3]).filter((x) => !x.loan).sort((x, y) => x.value - y.value)[2];
       const st = T.start(s, p.id, 'buy'); if (!st.talk) return { error: st.error };
       const r1 = T.offerClub(s, p.id, st.talk.asking); const r2 = T.offerContract(s, p.id, T.talkFor(s, p.id).demand);
-      return { pid: p.id, r1: r1.status, r2: r2.status, actions: MCM.app.ui.online.actions.length, club: s.clubId, avg: MCM.generator.xiAverage(s.players, s.clubs[s.clubId]) };
+      return { pid: p.id, r1: r1.status, r2: r2.status, club: s.clubId, avg: MCM.generator.xiAverage(s.players, s.clubs[s.clubId]) };
     });
     console.log('  ', JSON.stringify(signed));
-    if (signed.r2 !== 'done' || signed.actions !== 3) throw new Error('El fichaje no se hizo: ' + JSON.stringify(signed));
+    if (signed.r2 !== 'done') throw new Error('El fichaje no se hizo: ' + JSON.stringify(signed));
     if (Math.abs(signed.avg - 77) > 2) throw new Error('Media del club creado ' + signed.avg);
+    step('el fichaje llega al momento a los demás (sin jugar jornada)');
+    const t0 = Date.now();
+    for (const pg of [a, c]) await pg.waitForFunction((x) => MCM.app.s && MCM.app.s.players[x.pid].clubId === x.club, signed, { timeout: 20000 });
+    console.log('   visible para todos en', Date.now() - t0, 'ms');
+    if ((await b.evaluate((pid) => MCM.app.s.players[pid].clubId, signed.pid)) !== signed.club) throw new Error('El que ficha lo pierde');
+    if ((await a.evaluate(() => MCM.app.s.date)) !== (await b.evaluate(() => MCM.app.s.date))) throw new Error('No debe avanzar el calendario');
 
     step('el amigo cambia a 4-4-2 desde su móvil');
     await b.evaluate(() => MCM.app.go('tactics', {}));
@@ -142,12 +148,12 @@ const MOCK = ({ uid, name }) => {
       await b.waitForSelector('[data-act="on-ready"]');
       await b.click('[data-act="on-ready"]');
       await b.waitForSelector('[data-act="on-unready"]');
-      if ((await a.evaluate(() => MCM.app.ui.online.room.rev)) !== rev0) throw new Error('No debe jugarse sin la tercera jugadora');
+      if ((await a.evaluate(() => (MCM.app.ui.online.room.last || {}).rev || 0)) > rev0) throw new Error('No debe jugarse sin la tercera jugadora');
       await c.waitForSelector('[data-act="on-ready"]');
       await c.click('[data-act="on-ready"]');
-      await a.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
-      await b.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
-      await c.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
+      await a.waitForFunction((r) => { const m = MCM.app.ui.online.room; return m.last && m.last.rev > r && MCM.app.s && MCM.app.s.online.rev === m.rev; }, rev0, { timeout: 30000 });
+      await b.waitForFunction((r) => { const m = MCM.app.ui.online.room; return m.last && m.last.rev > r && MCM.app.s && MCM.app.s.online.rev === m.rev; }, rev0, { timeout: 30000 });
+      await c.waitForFunction((r) => { const m = MCM.app.ui.online.room; return m.last && m.last.rev > r && MCM.app.s && MCM.app.s.online.rev === m.rev; }, rev0, { timeout: 30000 });
       const info = await a.evaluate(() => { const s = MCM.app.s; const res = MCM.app.ui.online.room.last.results; return { date: s.date, n: res.length, txt: res.map((r) => s.clubs[r.home].short + ' ' + r.hg + '-' + r.ag + ' ' + s.clubs[r.away].short).join(', ') }; });
       console.log('  ', info.date, info.txt);
       if (!info.n) throw new Error('La jornada no tiene resultados de los jugadores');
@@ -160,6 +166,8 @@ const MOCK = ({ uid, name }) => {
           if (r.status !== 'sent') throw new Error('oferta ' + JSON.stringify(r));
           return p.id;
         });
+        await a.waitForFunction((pid) => MCM.app.s.market.offers.some((o) => o.human && o.pid === pid && o.status === 'pending'), deal.pid, { timeout: 20000 });
+        console.log('   a Erika le llega la oferta al momento');
       } else if (j === 2) {
         step('a Erika le llega la oferta de su amiga y la acepta');
         await a.evaluate(() => MCM.app.go('market', {}));
@@ -167,11 +175,14 @@ const MOCK = ({ uid, name }) => {
         await a.waitForSelector('[data-act="offer-accept"]');
         const r = await a.evaluate((pid) => { const s = MCM.app.s; const o = s.market.offers.find((x) => x.human && x.pid === pid && x.status === 'pending'); return o ? MCM.market.respondOffer(s, o.id, 'accept') : { error: 'sin oferta' }; }, deal.pid);
         if (r.status !== 'accepted') throw new Error('aceptar ' + JSON.stringify(r));
+        await c.waitForFunction((pid) => { const t = MCM.market.talkFor(MCM.app.s, pid); return t && t.stage === 'player'; }, deal.pid, { timeout: 20000 });
         await a.evaluate(() => MCM.app.go('hub', {}, { root: true }));
       } else if (j === 3) {
         step('la amiga cierra el contrato con el jugador (con cláusula)');
         const r = await c.evaluate((pid) => { const s = MCM.app.s; const T = MCM.market; const t = T.talkFor(s, pid); if (!t || t.stage !== 'player') return { error: 'talk ' + (t && t.stage) }; return T.offerContract(s, pid, Object.assign({}, t.demand, { clause: 30e6 })); }, deal.pid);
         if (r.status !== 'done') throw new Error('contrato ' + JSON.stringify(r));
+        await a.waitForFunction((pid) => MCM.app.s.players[pid].clubId === 'real-zaragoza', deal.pid, { timeout: 20000 });
+        console.log('   el jugador pasa al momento a la amiga');
       }
     }
 

@@ -205,6 +205,7 @@
       asking: p.clubId && kind !== 'renew' ? T.askingPrice(s, p) : 0, fee: 0, wageShare: kind === 'loan' ? 50 : 0,
       demand: T.contractDemand(s, p, kind), season: s.season.label,
     };
+    if (kind !== 'renew') talk.from = p.clubId || null;
     if (owner) talk.human = owner;
     if (kind === 'buy' && p.clause > 0) { talk.clause = p.clause; if (!owner) talk.asking = Math.min(talk.asking, p.clause); }
     if (kind === 'loan') {
@@ -218,6 +219,13 @@
     return { talk };
   };
 
+  /* Si el jugador ha cambiado de club desde que empezó la negociación (otro se lo llevó), se cierra. */
+  function movedAway(s, talk, p) {
+    if (!('from' in talk) || (p.clubId || null) === talk.from) return false;
+    talk.stage = 'failed';
+    talk.rounds.push({ by: 'club', text: p.clubId ? p.name + ' ya ha fichado por ' + s.clubs[p.clubId].name + '.' : p.name + ' ya no está en ese club.' });
+    return true;
+  }
   T.cancel = function (s, pid) {
     const t = s.market.talks[pid];
     if (t && t.offerId && t.human && s.clubs[t.human]) {
@@ -237,6 +245,7 @@
     const talk = T.talkFor(s, pid);
     const p = s.players[pid];
     if (!talk || talk.stage !== 'club') return { error: 'No hay una negociación con el club en curso.' };
+    if (movedAway(s, talk, p)) return { status: 'rejected' };
     const err = T.canApproach(s, p);
     if (err) return { error: err };
     if (talk.kind === 'loan') {
@@ -343,6 +352,7 @@
     const talk = T.talkFor(s, pid);
     const p = s.players[pid];
     if (!talk || talk.stage !== 'player') return { error: 'No hay una negociación de contrato en curso.' };
+    if (talk.kind !== 'renew' && movedAway(s, talk, p)) return { status: 'rejected' };
     offer = { wage: Math.max(0, Math.round(offer.wage)), years: U.clamp(Math.round(offer.years), 1, 5), bonus: Math.max(0, Math.round(offer.bonus || 0)), clause: Math.max(0, Math.round(offer.clause || 0)) };
     if (talk.human && p.clubId !== talk.human) { talk.stage = 'failed'; talk.rounds.push({ by: 'club', text: 'El jugador ya no está en ese club.' }); return { status: 'rejected' }; }
     if (talk.kind === 'loan') offer.years = 1;

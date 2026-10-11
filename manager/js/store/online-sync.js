@@ -187,7 +187,9 @@
   /* Marcar «Listo» (con mis órdenes) y, si el otro también lo está, avanzar. */
   R.ready = async function (meta, orders) {
     await R.saveOrders(meta.code, orders);
-    await retry(() => roomRef(meta.code).update({ ready: { [R.uid()]: meta.rev }, updatedAt: new Date().toISOString() }));
+    // Con la revisión más reciente: puede haber cambiado por un fichaje de otro mientras tanto.
+    const cur = (await R.get(meta.code)) || meta;
+    await retry(() => roomRef(meta.code).update({ ready: { [R.uid()]: cur.rev }, updatedAt: new Date().toISOString() }));
     return R.tryStep(meta.code);
   };
   R.unready = async function (meta) {
@@ -196,12 +198,53 @@
 
   R.bothReady = RU.allReady;
 
+  /* Suelta un bloqueo propio (no hay verbo para soltarlo: se renueva con caducidad inmediata). */
+  const unlock = (code) => roomRef(code).acquire({ holder: R.uid(), ttlMs: 1 }).catch(() => null);
+  /*
+   * Fichajes al momento: aplica mis operaciones de mercado en el mundo de todos y publica una revisión nueva
+   * (sin jugar nada). Se reaplican también las tácticas guardadas de todos para no perderlas; quien ya estaba
+   * «Listo» lo sigue estando.
+   */
+  R.act = async function (code, acts) {
+    let lease = { acquired: false };
+    for (let i = 0; i < 12 && !lease.acquired; i++) {
+      lease = await roomRef(code).acquire({ holder: R.uid(), ttlMs: 20000 });
+      if (!lease.acquired) await new Promise((r) => setTimeout(r, 800));
+    }
+    if (!lease.acquired) return { applied: false };
+    try {
+      const meta = await R.get(code);
+      if (!meta || meta.status !== 'playing') return { applied: false };
+      const s = await readState(meta);
+      s.online = Object.assign({}, s.online || {}, { code, rev: meta.rev });
+      const me = RU.me(meta, R.uid());
+      if (!me) return { applied: false };
+      MCM.online.viewAs(s, me.clubId);
+      for (const u of RU.players(meta)) {
+        const o = await retry(() => ordersRef(code, u.uid).get());
+        if (o.exists) MCM.online.applyOrders(s, o.data());
+      }
+      MCM.online.applyActs(s, me.clubId, acts);
+      MCM.online.viewAs(s, s.clubId);
+      const rev = meta.rev + 1;
+      const st = await writeState(code, rev, s);
+      const ready = {};
+      Object.keys(meta.ready || {}).forEach((k) => { ready[k] = meta.ready[k] === meta.rev ? rev : 0; });
+      await retry(() => roomRef(code).update({ rev, chunks: st.chunks, enc: st.enc, ready, updatedAt: new Date().toISOString() }));
+      dropState(code, meta.rev, meta.chunks);
+      return { applied: true, rev };
+    } finally { unlock(code); }
+  };
+
   R.tryStep = async function (code) {
     let meta = await R.get(code);
     if (!R.bothReady(meta)) return { stepped: false };
     const lease = await roomRef(code).acquire({ holder: R.uid(), ttlMs: 90000 });
     if (!lease.acquired) return { stepped: false, busy: true };
-    meta = await R.get(code);
+    try { return await stepLocked(code); } finally { unlock(code); }
+  };
+  async function stepLocked(code) {
+    let meta = await R.get(code);
     if (!R.bothReady(meta)) return { stepped: false };
     const s = await readState(meta);
     s.online = Object.assign({}, s.online || {}, { code, rev: meta.rev });
@@ -220,7 +263,7 @@
     }));
     dropState(code, meta.rev, meta.chunks);
     return { stepped: true, result: res };
-  };
+  }
 
   /* Mis salas (como creador o invitado). */
   R.mine = async function () {

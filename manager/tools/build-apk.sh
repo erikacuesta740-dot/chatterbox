@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compila la app Android (APK) sin Android Studio: aapt2 + javac + dx + firma v1/v2/v3.
 # Variables necesarias (ver README): AAPT2, ANDROID_JAR (android-all de Robolectric o android.jar), DX_JAR,
-# SIGNER (sign.mjs), KEY y CERT (PEM). Opcionales: COVER (jpg de portada), ICONS (carpeta con ic_<densidad>.png), OUT.
+# SIGNER (sign.mjs), KEY y CERT (PEM). Opcionales: COVER (jpg de portada), CELEBRATION (jpg para «HAS GANADO»), ICONS (carpeta con ic_<densidad>.png), OUT.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${OUT:-$ROOT/dist/android}"
@@ -9,6 +9,8 @@ W="$OUT/work"
 rm -rf "$W" && mkdir -p "$W/res" "$W/assets/www" "$W/classes"
 # 1) Juego en un solo HTML (con portada si se indica)
 node "$ROOT/tools/build-single.js" "$W/assets/www/index.html" ${COVER:+--cover "$COVER"}
+# Imagen de celebración de títulos (solo en la APK, nunca en la web pública).
+if [ -n "${CELEBRATION:-}" ] && [ -f "$CELEBRATION" ]; then cp "$CELEBRATION" "$W/assets/www/celebration.jpg"; fi
 # 2) Recursos: estilos + iconos
 cp -r "$ROOT/android/res/." "$W/res/"
 for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do

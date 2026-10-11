@@ -54,9 +54,31 @@
   };
 
   /* Órdenes de un club: lo que cada jugador decide desde su móvil. */
-  O.extractOrders = function (s, clubId, actions) {
+  /* acts: lotes de operaciones de mercado [{ seq, actions: [{ fn, args }] }] aún no aplicados en el mundo compartido. */
+  O.extractOrders = function (s, clubId, acts) {
     const club = s.clubs[clubId];
-    return { clubId, tactics: Object.assign({}, club.tactics), lineup: club.lineup ? JSON.parse(JSON.stringify(club.lineup)) : null, takers: Object.assign({}, club.takers || {}), actions: actions || [], baseRev: s.online ? s.online.rev : null };
+    return { clubId, tactics: Object.assign({}, club.tactics), lineup: club.lineup ? JSON.parse(JSON.stringify(club.lineup)) : null, takers: Object.assign({}, club.takers || {}), acts: acts || [] };
+  };
+  /* Último lote de operaciones aplicado de un club (va dentro del propio mundo). */
+  O.lastSeq = (s, clubId) => (s.online && s.online.acts && s.online.acts[clubId]) || 0;
+  /* Aplica (una sola vez y en orden) los lotes de operaciones de mercado de un club. */
+  O.applyActs = function (s, clubId, acts) {
+    if (!Array.isArray(acts) || !acts.length || !s.clubs[clubId] || !s.humans.includes(clubId)) return 0;
+    s.online = s.online || {};
+    s.online.acts = s.online.acts || {};
+    let n = 0;
+    acts.slice().sort((a, b) => a.seq - b.seq).forEach((b) => {
+      if (!b || !(b.seq > O.lastSeq(s, clubId))) return;
+      C().asUser(s, clubId, () => {
+        (b.actions || []).forEach((a) => {
+          if (!a || !O.ACTIONS.includes(a.fn) || typeof MCM.market[a.fn] !== 'function') return;
+          try { MCM.market[a.fn].apply(null, [s].concat(a.args || [])); } catch (e) { /* una operación que ya no es posible se ignora */ }
+        });
+      });
+      s.online.acts[clubId] = b.seq;
+      n++;
+    });
+    return n;
   };
   O.applyOrders = function (s, orders) {
     if (!orders || !s.clubs[orders.clubId] || !s.humans.includes(orders.clubId)) return;
@@ -69,15 +91,8 @@
       if (lu.formation !== club.tactics.formation) club.lineup = LU().autoPick(C().squad(s, club.id), club.tactics.formation);
     }
     if (orders.takers) { club.takers = {}; Object.keys(orders.takers).forEach((k) => { if (mine(orders.takers[k])) club.takers[k] = orders.takers[k]; }); }
-    // Operaciones de mercado hechas desde el móvil de ese jugador (en su orden).
-    if (Array.isArray(orders.actions) && orders.actions.length && (orders.baseRev == null || orders.baseRev === (s.online && s.online.rev))) {
-      C().asUser(s, club.id, () => {
-        orders.actions.forEach((a) => {
-          if (!a || !O.ACTIONS.includes(a.fn) || typeof MCM.market[a.fn] !== 'function') return;
-          try { MCM.market[a.fn].apply(null, [s].concat(a.args || [])); } catch (e) { /* una operación que ya no es posible se ignora */ }
-        });
-      });
-    }
+    // Operaciones de mercado que aún no se hubieran aplicado al momento.
+    O.applyActs(s, club.id, orders.acts);
   };
 
   /* Próximo partido de cualquiera de los dos clubes humanos. */
