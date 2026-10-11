@@ -33,7 +33,7 @@ MCM.DATA.leagues.forEach((L) => {
     const [name, short, rep, stadium, c1, c2] = row;
     if (!name || !short || !(rep >= 30 && rep <= 99) || !/^#[0-9a-f]{6}$/i.test(c1) || !/^#[0-9a-f]{6}$/i.test(c2)) err(L.id + ': fila de club incorrecta ' + JSON.stringify(row));
     const list = R[U.slug(name)];
-    if (!list) { warn(L.id + ': sin plantilla real ' + name); return; }
+    if (!list || !list.length) { warn(L.id + ': sin plantilla real ' + name); return; }
     real++;
     let gk = 0;
     list.forEach((line) => {

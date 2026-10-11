@@ -128,7 +128,7 @@
       'Viktor Johansson|POR|1998|71|72|SWE', 'Tom Sparrow|POR|2002|60|66|WAL',
       'Junior Tchamadeu|LD|2003|69|74|ENG', 'Ben Wilmot|DFC|1999|70|71|ENG', 'Ashley Phillips|DFC|2005|67|76|ENG',
       'Michael Rose|DFC|1995|67|67|SCO', 'Eric Bocat|LI|1999|67|68|FRA', 'Aaron Cresswell|LI|1989|67|67|ENG',
-      'Bosun Lawal|MCD|2003|67|73|IRL', 'Wouter Burger|MCD|2001|70|72|NED', 'Tatsuki Seko|MC|1997|68|68|JPN',
+      'Bosun Lawal|MCD|2003|67|73|IRL', 'Tatsuki Seko|MC|1997|68|68|JPN',
       'Jordan Thompson|MC|1997|67|67|NIR', 'Lewis Baker|MC|1995|68|68|ENG', 'Bae Jun-ho|MCO|2003|70|75|KOR',
       'Tomáš Rigo|MC|2002|68|72|SVK', 'Million Manhoef|ED|2002|71|74|NED', 'Sorba Thomas|EI|1999|69|69|WAL',
       'Lynden Gooch|ED|1995|65|65|USA', 'Sam Gallagher|DC|1995|67|67|ENG', 'Robert Bozeník|DC|1999|68|68|SVK',

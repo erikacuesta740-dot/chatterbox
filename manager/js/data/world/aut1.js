@@ -56,7 +56,7 @@
       'Nikolas Polster|POR|2002|65|70|AUT', 'Dominik Baumgartner|DFC|1996|66|66|AUT', 'Markus Pink|DC|1991|65|65|AUT',
     ],
     'tsv-hartberg': [],
-    'blau-wei-linz': [
+    'blau-weiss-linz': [
       'Ronivaldo|DC|1989|63|63|BRA',
     ],
     'wsg-tirol': [],

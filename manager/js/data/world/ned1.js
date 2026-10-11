@@ -35,6 +35,7 @@
       'Couhaib Driouech|EI|2002|74|78|NED', 'Tygo Land|MC|2005|67|77|NED', 'Ricardo Pepi|DC|2003|76|81|USA',
     ],
     'ajax': [
+      'Ko Itakura|DFC|1997|77|77|JPN',
       'Vítězslav Jaroš|POR|2001|75|80|CZE', 'Remko Pasveer|POR|1983|71|71|NED',
       'Josip Šutalo|DFC|2000|77|80|CRO', 'Youri Baas|DFC|2003|76|82|NED', 'Aaron Bouwman|DFC|2007|66|80|NED',
       'Anton Gaaei|LD|2002|73|77|DEN', 'Lucas Rosa|LD|2000|72|75|BRA', 'Owen Wijndal|LI|1999|72|72|NED', 'Jorthy Mokio|LI|2008|66|82|BEL',

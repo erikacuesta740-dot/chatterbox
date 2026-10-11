@@ -59,8 +59,7 @@
     ],
     'al-qadsiah': [
       'Koen Casteels|POR|1992|79|79|BEL', 'Nacho Fernández|DFC|1990|78|78|ESP', 'Gastón Álvarez|DFC|2000|74|76|URU',
-      'Nahitan Nández|MC|1995|76|76|URU', 'Ezequiel Fernández|MC|2002|75|80|ARG', 'Cameron Puertas|MCO|1998|75|76|ESP',
-      'Christopher Bonsu Baah|ED|2004|72|80|GHA', 'Julián Quiñones|DC|1997|77|77|MEX', 'Mateo Retegui|DC|1999|79|80|ITA',
+      'Nahitan Nández|MC|1995|76|76|URU', 'Ezequiel Fernández|MC|2002|75|80|ARG', 'Christopher Bonsu Baah|ED|2004|72|80|GHA', 'Julián Quiñones|DC|1997|77|77|MEX', 'Mateo Retegui|DC|1999|79|80|ITA',
     ],
     'al-ettifaq': [
       'Marek Rodák|POR|1996|74|75|SVK', 'Jack Hendry|DFC|1995|73|73|SCO', 'Francisco Calvo|DFC|1992|71|71|CRC',

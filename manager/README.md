@@ -4,18 +4,23 @@ Simulador de gestión futbolística pensado para jugar desde el iPhone. Eres ent
 deportivo: eliges el once y la táctica, fichas, vendes, renuevas, cuidas la cantera y gestionas el dinero;
 los partidos se simulan.
 
-> **Datos.** Los clubes y estadios son reales (temporada 2025/26). Por defecto, **Primera División y Premier League
-> tienen jugadores reales** (861) según el conocimiento del asistente hasta mediados de 2026, **no verificados**:
-> medias y potenciales son estimaciones, no las de FC 27, y puede faltar algún fichaje reciente. El resto de ligas
-> y los agentes libres usan jugadores ficticios, y los huecos de las plantillas reales se completan con ficticios
-> marcados como tales. **No hay valores de mercado de FC 27** hasta que se importen de una fuente (ver más abajo).
+> **Datos.** 31 ligas masculinas (las de EA SPORTS FC 26 que conoce el asistente; la lista exacta de FC 27 no está verificada),
+> unos 590 clubes de la temporada 2025/26 y unos 5.000 jugadores reales según el conocimiento del asistente hasta mediados
+> de 2026, **no verificados**: medias y potenciales son estimaciones, no las de FC 27, y puede faltar algún fichaje reciente.
+> Las grandes ligas están casi completas; en ligas pequeñas y categorías inferiores los huecos se completan con jugadores
+> ficticios marcados como tales, igual que los agentes libres. **No hay valores de mercado de FC 27** hasta que se importen.
 > Nada de esto son datos oficiales de EA SPORTS FC.
 
 ## Qué incluye
 
 **Carreras, competiciones y partidos**
 - Carreras independientes: crear, continuar, renombrar y eliminar (con confirmación).
-- 7 ligas y 142 clubes + 77 clubes europeos (nombres reales, plantillas ficticias).
+- 31 ligas: España (2), Inglaterra (4), Italia (2), Alemania (3), Francia (2), Portugal, Países Bajos, Bélgica, Escocia,
+  Turquía, Austria, Suiza, Dinamarca, Noruega, Suecia, Polonia, Irlanda, Rumanía, Arabia Saudí, MLS, Argentina, Corea y Australia,
+  más clubes europeos invitados para completar las competiciones UEFA.
+- Ascensos y descensos reales con playoffs: Segunda (3º-6º, ida y vuelta), Championship/League One/League Two (semifinales
+  a doble partido y final única), Serie B (3º-8º), 2. Bundesliga y 3. Liga (promoción contra el antepenúltimo de arriba) y
+  Ligue 2 (eliminatorias y promoción).
 - Copas nacionales (Copa del Rey, FA Cup, Coppa Italia, DFB-Pokal, Coupe de France) con prórroga y penaltis.
 - Champions, Europa League y Conference League con fase liga de 36 equipos, playoffs, eliminatorias a doble partido y final.
 - Calendario por fechas: jornadas de fin de semana, partidos entre semana y parones internacionales; recuperación física diaria.
@@ -100,9 +105,11 @@ tools/build-single.js                             Empaqueta todo en un único HT
 ## Pruebas
 
 ```
-npm test                      # 28 pruebas: calendario, simulación, mercado, contratos, cantera, valores FC 27...
+npm test                      # 29 pruebas: calendario, simulación, mercado, contratos, cantera, valores FC 27...
 npm run serve                 # servidor local en :8765
 node tests/e2e.js             # recorrido completo en un navegador con tamaño de iPhone
 node tests/cloud-e2e.js       # guardado online, otro dispositivo y privacidad entre usuarios (base simulada)
 npm run build                 # dist/modo-carrera-manager.html (archivo único)
+node tools/check-data.js      # revisa ligas y plantillas reales
+node tools/sync-scripts.js    # enlaza en index.html los archivos de js/data/rosters y js/data/world
 ```

@@ -38,8 +38,7 @@
       'Connor Barron|MCD|2002|70|74|SCO', 'Nicolas Raskin|MC|2001|72|74|BEL', 'Mohamed Diomande|MC|2001|73|76|CIV',
       'Joe Rothwell|MC|1995|68|68|ENG', 'Lyall Cameron|MC|2003|67|72|SCO', 'Thelo Aasgaard|MCO|2002|70|74|NOR',
  'Oliver Antman|ED|2001|70|73|FIN', 'Djeidi Gassama|EI|2003|71|76|FRA',
-      'Mikey Moore|EI|2007|68|80|ENG', 'Danilo|DC|1999|70|71|BRA', 'Cyriel Dessers|DC|1994|71|71|NGA',
-      'Bojan Miovski|DC|1999|70|71|MKD', 'Youssef Chermiti|DC|2004|69|76|POR',
+      'Mikey Moore|EI|2007|68|80|ENG', 'Danilo|DC|1999|70|71|BRA', 'Bojan Miovski|DC|1999|70|71|MKD', 'Youssef Chermiti|DC|2004|69|76|POR',
     ],
     hearts: [
       'Alexander Schwolow|POR|1992|69|69|GER', 'Craig Gordon|POR|1982|65|65|SCO',

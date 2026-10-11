@@ -31,6 +31,7 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
 
   step('crear carrera Sunderland');
   await click('[data-act="new-career"]');
+  await page.selectOption('#nc-country', 'Inglaterra');
   await click('[data-act="new-league"][data-id="ENG1"]');
   await snap('02-elegir-club');
   await click('[data-act="new-club"][data-id="sunderland"]');
@@ -125,7 +126,7 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   await click('[data-act="tab"][data-view="table"]');
   await snap('10-tabla');
   await click('[data-act="comp-tab"][data-v="scorers"]');
-  await click('[data-act="comp-sel"][data-v="UCL"]');
+  await page.selectOption('#comp-pick', 'UCL');
   await page.waitForSelector('text=Fase liga');
   await snap('10b-champions');
   await click('[data-act="comp-sel"][data-v="CUP_ENG"]');
@@ -222,6 +223,8 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
 
   step('cierre de temporada desde la interfaz');
   await page.evaluate(() => { const s = MCM.app.s; while (!MCM.career.seasonFinished(s)) MCM.career.playMatchday(s); MCM.app.go('hub', {}, { root: true }); });
+  const st = await page.evaluate(() => ({ fin: MCM.career.seasonFinished(MCM.app.s), unemployed: !!(MCM.app.s.manager && MCM.app.s.manager.unemployed), view: document.querySelector('h1') && document.querySelector('h1').textContent }));
+  console.log('   estado', JSON.stringify(st));
   await page.waitForSelector('[data-act="end-season-ask"]');
   await snap('15-fin-temporada');
   await click('[data-act="end-season-ask"]');

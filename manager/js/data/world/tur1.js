@@ -26,6 +26,7 @@
     ],
   }, {
     galatasaray: [
+      'Przemysław Frankowski|LD|1995|76|76|POL',
       'Uğurcan Çakır|POR|1996|79|79|TUR', 'Günay Güvenç|POR|1991|70|70|TUR',
       'Wilfried Singo|DFC|2000|79|81|CIV', 'Davinson Sánchez|DFC|1996|79|79|COL', 'Abdülkerim Bardakcı|DFC|1994|77|77|TUR',
       'Kaan Ayhan|DFC|1994|74|74|TUR', 'Ismail Jakobs|LI|1999|75|76|SEN', 'Eren Elmalı|LI|2000|73|75|TUR',
@@ -79,7 +80,7 @@
       'Mateusz Lis|POR|1997|70|71|POL',
     ],
     eyupspor: [],
-    'kas-mpasa': [
+    'kasimpasa': [
       'Andreas Gianniotis|POR|1992|68|68|GRE', 'Haris Hajradinović|MCO|1993|68|68|BIH',
     ],
     alanyaspor: [

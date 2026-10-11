@@ -72,7 +72,9 @@
     return (prefix || 'id') + '_' + Date.now().toString(36) + rnd;
   };
 
-  U.slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+  // Letras que no se descomponen con NFD (ø, ł, ı, ß…) se transcriben antes.
+  const TRANSLIT = { ø: 'o', Ø: 'o', æ: 'ae', Æ: 'ae', œ: 'oe', Œ: 'oe', ł: 'l', Ł: 'l', ı: 'i', ß: 'ss', đ: 'd', Đ: 'd', ð: 'd', þ: 'th', ħ: 'h' };
+  U.slug = (s) => String(s).replace(/[øØæÆœŒłŁıßđĐðþħ]/g, (c) => TRANSLIT[c]).normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   // Dinero en euros. Unidad única de salario del juego: euros por semana.

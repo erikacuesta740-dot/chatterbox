@@ -60,8 +60,8 @@
     'gornik-zabrze': [
       'Erik Janža|LI|1993|65|65|SVN', 'Lukas Podolski|MCO|1985|64|64|GER',
     ],
-    'cracovia': [], 'motor-lublin': [], 'gks-katowice': [], 'piast-gliwice': [], 'widzew-odz': [], 'korona-kielce': [],
-    'radomiak-radom': [], 'zag-ebie-lubin': [], 'lechia-gdansk': [], 'arka-gdynia': [], 'wis-a-p-ock': [],
+    'cracovia': [], 'motor-lublin': [], 'gks-katowice': [], 'piast-gliwice': [], 'widzew-lodz': [], 'korona-kielce': [],
+    'radomiak-radom': [], 'zaglebie-lubin': [], 'lechia-gdansk': [], 'arka-gdynia': [], 'wisla-plock': [],
     'bruk-bet-termalica-nieciecza': [],
   });
 })(globalThis.MCM = globalThis.MCM || {});

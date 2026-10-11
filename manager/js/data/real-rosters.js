@@ -17,7 +17,7 @@
   MCM.DATA.realRostersInfo = {
     id: 'real-2025-26-conocimiento',
     name: 'Plantillas reales (no verificadas)',
-    note: 'Jugadores reales según conocimiento hasta mediados de 2026. Medias y potenciales estimados; no son datos de FC 27. Segunda, Serie A, Bundesliga, clubes europeos invitados y agentes libres aún usan jugadores ficticios.',
+    note: 'Jugadores reales según conocimiento hasta mediados de 2026. Medias y potenciales estimados; no son datos de FC 27. Los huecos de cada plantilla y los agentes libres son ficticios.',
     knowledgeCutoff: '2026-06',
   };
 

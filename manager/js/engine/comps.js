@@ -286,6 +286,10 @@
     ['UCL', 'UEL', 'UECL'].forEach((k) => { if (q[k].length > 36) q[k].length = 36; });
     const rng = U.rng(s.seed + ':q:' + s.season.year);
     const extras = Object.values(s.clubs).filter((c) => c.ext).map((c) => ({ id: c.id, k: c.rep + rng.range(-4, 4) })).sort((a, b) => b.k - a.k).map((x) => x.id);
+    // Si no hay bastantes invitados, completan los mejores clubes no clasificados de ligas europeas.
+    const pool = Object.values(s.clubs).filter((c) => !used.has(c.id) && !c.ext && c.leagueId && s.leagues[c.leagueId].tier === 1 && s.leagues[c.leagueId].uefa !== false)
+      .map((c) => ({ id: c.id, k: c.rep + rng.range(-3, 3) })).sort((a, b) => b.k - a.k).map((x) => x.id);
+    extras.push(...pool);
     ['UCL', 'UEL', 'UECL'].forEach((k) => {
       while (q[k].length < 36 && extras.length) q[k].push(extras.shift());
       if (q[k].length % 2) q[k].pop();

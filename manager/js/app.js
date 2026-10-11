@@ -157,7 +157,7 @@
       '<button class="btn block" data-act="nav" data-view="careers">' + icon('folder') + 'Mis carreras guardadas (' + App.metas.length + ')</button>' +
       '<button class="btn ghost block" data-act="nav" data-view="settings">' + icon('settings') + 'Ajustes</button></section>' +
       accountCard() +
-      '<section class="notice small"><b>Datos.</b> Clubes reales (2025/26). Primera, Premier, Championship y Ligue 1 con jugadores reales según conocimiento hasta mediados de 2026, no verificados; Segunda, Serie A, Bundesliga, agentes libres y clubes europeos invitados, todavía ficticios. No son datos oficiales de EA SPORTS FC.</section>';
+      '<section class="notice small"><b>Datos.</b> 31 ligas y unos 590 clubes (2025/26). Unos 5.000 jugadores reales según lo que sabe el asistente hasta mediados de 2026, no verificados; los huecos de cada plantilla y los agentes libres son ficticios. No son datos oficiales de EA SPORTS FC.</section>';
     return { title: 'Inicio', html, tabs: false };
   };
 
@@ -207,7 +207,7 @@
       '<button class="chip ' + (cur === 'real' ? 'on' : '') + '" data-act="new-dataset" data-v="real">Plantillas reales (no verificadas)</button>' +
       '<button class="chip ' + (cur === 'demo' ? 'on' : '') + '" data-act="new-dataset" data-v="demo">Demo ficticia</button>' +
       (App.customDataset ? '<button class="chip ' + (cur === 'custom' ? 'on' : '') + '" data-act="new-dataset" data-v="custom">' + esc((App.customDataset.info && App.customDataset.info.name) || 'Base importada') + '</button>' : '') + '</div>' +
-      (cur === 'real' ? '<p class="notice small">Jugadores reales de Primera, Premier League, Championship y Ligue 1 según lo que sabe el asistente hasta mediados de 2026. Medias y potenciales estimados, no de FC 27; puede faltar algún fichaje reciente. Segunda, Serie A, Bundesliga, agentes libres y clubes europeos invitados aún son ficticios.</p>' : '');
+      (cur === 'real' ? '<p class="notice small">31 ligas con jugadores reales según lo que sabe el asistente hasta mediados de 2026 (unos 5.000). Medias y potenciales estimados, no de FC 27; puede faltar algún fichaje reciente. Las grandes ligas están casi completas; en ligas pequeñas y categorías inferiores muchos huecos se completan con jugadores ficticios.</p>' : '');
     if (!App.ui.newClub) {
       const clubs = L.clubs.map(clubRow).sort((a, b) => b.rep - a.rep);
       const countries = Array.from(new Set(leagues.map((l) => l.country)));

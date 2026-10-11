@@ -31,6 +31,7 @@
       'Luka Jović|DC|1997|73|73|SRB', 'Barnabás Varga|DC|1994|72|72|HUN',
     ],
     'panathinaikos': [
+      'Cyriel Dessers|DC|1994|71|71|NGA',
       'Alban Lafont|POR|1999|75|77|FRA',
       'Davide Calabria|LD|1996|73|73|ITA', 'Giannis Kotsiras|LD|1992|68|68|GRE', 'Erik Palmer-Brown|DFC|1997|71|72|USA',
       'Tin Jedvaj|DFC|1995|71|71|CRO', 'Sverrir Ingason|DFC|1993|69|69|ISL', 'Ahmed Touba|DFC|1998|71|72|ALG',

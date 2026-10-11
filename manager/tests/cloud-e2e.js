@@ -51,6 +51,7 @@ const MOCK = () => {
   await page.waitForSelector('text=Guardado online activado');
   step('crear carrera con cuenta');
   await page.click('[data-act="new-career"]');
+  await page.selectOption('#nc-country', 'España');
   await page.click('[data-act="new-league"][data-id="ESP1"]');
   await page.click('[data-act="new-club"][data-id="real-betis"]');
   await page.click('#new-form button[type=submit]');

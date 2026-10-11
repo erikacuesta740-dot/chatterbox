@@ -32,8 +32,27 @@
   L.autoPick = function (players, formation) {
     const slots = L.slots(formation);
     const avail = players.filter(MCM.players.isAvailable);
+    // Para cada hueco solo cuentan sus mejores candidatos (mucho más rápido con cientos de equipos).
+    const K = 6;
     const pairs = [];
-    avail.forEach((p) => slots.forEach((pos, i) => pairs.push([L.slotScore(p, pos), p.id, i])));
+    const cache = {};
+    slots.forEach((pos, i) => {
+      let top = cache[pos];
+      if (!top) {
+        // Selección de los K mejores por inserción (sin ordenar toda la lista).
+        top = [];
+        for (const p of avail) {
+          const sc = L.slotScore(p, pos);
+          if (top.length === K && sc <= top[K - 1][0]) continue;
+          let j = top.length < K ? top.length : K - 1;
+          while (j > 0 && top[j - 1][0] < sc) { if (j < K) top[j] = top[j - 1]; j--; }
+          top[j] = [sc, p.id];
+          if (top.length > K) top.length = K;
+        }
+        cache[pos] = top;
+      }
+      top.forEach(([sc, pid]) => pairs.push([sc, pid, i]));
+    });
     pairs.sort((a, b) => b[0] - a[0]);
     const xi = new Array(slots.length).fill(null);
     const used = new Set();
@@ -42,6 +61,13 @@
       xi[i] = pid;
       used.add(pid);
     }
+    // Huecos sin candidato (plantillas muy cortas): el mejor que quede.
+    slots.forEach((pos, i) => {
+      if (xi[i]) return;
+      let best = null;
+      avail.forEach((p) => { if (!used.has(p.id) && (!best || L.slotScore(p, pos) > L.slotScore(best, pos))) best = p; });
+      if (best) { xi[i] = best.id; used.add(best.id); }
+    });
     const rest = avail.filter((p) => !used.has(p.id)).sort((a, b) => b.ovr * (0.6 + 0.4 * b.fitness / 100) - a.ovr * (0.6 + 0.4 * a.fitness / 100));
     const bench = [];
     const gk = rest.find((p) => p.pos === 'POR');

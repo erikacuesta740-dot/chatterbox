@@ -121,17 +121,19 @@ test('progresión de jugadores: jóvenes con potencial mejoran más que veterano
   assert.ok(old / 300 < -1, 'veteranos declinan: ' + old / 300);
 });
 
-test('plantillas reales (no verificadas): 40 clubes, sin duplicados y marcadas', () => {
+test('plantillas reales (no verificadas): todas las ligas, sin duplicados y marcadas', () => {
   const ds = M.DATA.realDataset();
   assert.deepStrictEqual(M.generator.validateDataset(ds), []);
   const s = C.create({ dataset: ds, clubId: 'real-madrid', seed: 'real' });
   assert.deepStrictEqual(C.validate(s), []);
   const real = Object.values(s.players).filter((p) => p.src === 'knowledge');
-  assert.ok(real.length > 800, 'jugadores reales: ' + real.length);
+  assert.ok(real.length > 4500, 'jugadores reales: ' + real.length);
   real.forEach((p) => { assert.strictEqual(p.demo, false); assert.ok(p.extId.startsWith('mc:')); });
   assert.ok(C.squad(s, 'real-madrid').some((p) => p.name === 'Kylian Mbappé'));
-  // Las ligas sin plantillas reales siguen siendo ficticias y marcadas
-  assert.ok(C.squad(s, 'inter').every((p) => p.demo));
+  assert.ok(C.squad(s, 'inter').some((p) => p.name === 'Lautaro Martínez'));
+  // Los huecos se completan con ficticios marcados
+  assert.ok(C.squad(s, 'fc-thun').every((p) => p.demo || p.src === 'knowledge'));
+  assert.ok(Object.keys(s.leagues).length >= 30, 'ligas: ' + Object.keys(s.leagues).length);
   // Cada club tiene plantilla suficiente en todas las líneas
   Object.values(s.clubs).filter((c) => !c.ext).forEach((c) => {
     const sq = C.squad(s, c.id);

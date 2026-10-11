@@ -23,7 +23,7 @@
       ['Bryne FK', 'BRY', 48, 'Bryne Stadion', '#e30613', '#ffffff'],
     ],
   }, {
-    'bod-glimt': [
+    'bodo-glimt': [
       'Nikita Haikin|POR|1995|71|71|ISR', 'Julian Lund|POR|1999|63|65|NOR',
       'Odin Bjørtuft|DFC|1998|70|71|NOR', 'Haitam Aleesami|DFC|1991|68|68|NOR', 'Jostein Gundersen|DFC|1996|69|69|NOR',
       'Villads Nielsen|DFC|2001|67|70|DEN', 'Brede Moe|DFC|1991|65|65|NOR', 'Fredrik Sjøvold|LD|2003|67|72|NOR',
@@ -53,10 +53,10 @@
     'viking': [
       'Zlatko Tripić|MCO|1992|67|67|NOR', 'Kristoffer Løkberg|MC|1992|65|65|NOR',
     ],
-    'troms-il': [
+    'tromso-il': [
       'Jakob Haugaard|POR|1992|63|63|DEN',
     ],
-    'valerenga': [], 'fredrikstad': [], 'sarpsborg-08': [], 'sandefjord': [], 'str-msgodset': [], 'hamkam': [],
+    'valerenga': [], 'fredrikstad': [], 'sarpsborg-08': [], 'sandefjord': [], 'stromsgodset': [], 'hamkam': [],
     'kfum-oslo': [], 'kristiansund-bk': [], 'fk-haugesund': [], 'bryne-fk': [],
   });
 })(globalThis.MCM = globalThis.MCM || {});

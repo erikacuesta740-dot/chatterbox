@@ -39,7 +39,7 @@
       'Franculino Djú|DC|2004|71|78|GNB', 'Cho Gue-sung|DC|1998|70|70|KOR', 'Mikel Gogorza|EI|2004|66|74|ESP',
       'Junior Brumado|DC|1999|66|67|BRA',
     ],
-    'br-ndby': [
+    'brondby': [
       'Patrick Pentz|POR|1997|70|72|AUT', 'Jacob Rasmussen|DFC|1997|69|69|DEN', 'Rasmus Lauritsen|DFC|1996|68|68|DEN',
       'Frederik Alves|DFC|1999|67|69|DEN', 'Kevin Tshiembe|DFC|2003|66|72|DEN', 'Sean Klaiber|LD|1994|66|66|NED',
       'Daniel Wass|MC|1989|69|69|DEN', 'Benjamin Tahirović|MC|2003|68|74|BIH', 'Clement Bischoff|MC|2005|65|75|DEN',
@@ -52,7 +52,7 @@
       'Kristian Arnstad|MC|2003|66|72|NOR', 'Tobias Bech|ED|2002|67|71|DEN', 'Patrick Mortensen|DC|1989|68|68|DEN',
       'Mikkel Duelund|MCO|1997|66|66|DEN', 'Gift Links|ED|1998|67|68|RSA',
     ],
-    'fc-nordsj-lland': [
+    'fc-nordsjaelland': [
       'Oliver Villadsen|LD|1999|65|67|DEN',
       'Prince Amoako Junior|MC|2005|64|74|GHA',
     ],
@@ -60,7 +60,7 @@
     'viborg-ff': [],
     'silkeborg-if': [],
     'ob': [],
-    's-nderjyske': [],
+    'sonderjyske': [],
     'vejle-bk': [],
     'fc-fredericia': [],
   });

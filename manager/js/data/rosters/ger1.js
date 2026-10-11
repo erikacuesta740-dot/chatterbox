@@ -56,6 +56,7 @@
       'Jonathan Burkardt|DC|2000|80|81|GER', 'Elye Wahi|DC|2003|73|79|FRA', 'Michy Batshuayi|DC|1993|72|72|BEL',
     ],
     'vfb-stuttgart': [
+      'Badredine Bouanani|ED|2004|72|80|ALG',
       'Alexander Nübel|POR|1996|81|81|GER', 'Fabian Bredlow|POR|1995|70|70|GER',
       'Jeff Chabot|DFC|1998|78|78|GER', 'Finn Jeltsch|DFC|2006|73|83|GER', 'Dan-Axel Zagadou|DFC|1999|75|75|FRA',
       'Ameen Al-Dakhil|DFC|2002|72|78|BEL', 'Luca Jaquez|DFC|2003|72|78|SUI', 'Josha Vagnoman|LD|2000|74|76|GER',
@@ -76,6 +77,7 @@
       'Igor Matanović|DC|2003|73|78|CRO', 'Junior Adamu|DC|2001|72|75|AUT',
     ],
     'tsg-hoffenheim': [
+      'Wouter Burger|MCD|2001|70|72|NED',
       'Oliver Baumann|POR|1990|80|80|GER',
       'Ozan Kabak|DFC|2000|76|77|TUR', 'Kevin Akpoguma|DFC|1995|74|74|NGA', 'Robin Hranáč|DFC|2000|75|77|CZE',
       'Albian Hajdari|DFC|2003|74|79|SUI', 'Koki Machida|DFC|1997|74|74|JPN', 'Bernardo|LI|1995|73|73|BRA',
@@ -97,7 +99,7 @@
     ],
     'borussia-monchengladbach': [
       'Moritz Nicolas|POR|1997|75|76|GER', 'Jonas Omlin|POR|1994|75|75|SUI',
-      'Nico Elvedi|DFC|1996|77|77|SUI', 'Ko Itakura|DFC|1997|77|77|JPN', 'Marvin Friedrich|DFC|1995|72|72|GER',
+      'Nico Elvedi|DFC|1996|77|77|SUI', 'Marvin Friedrich|DFC|1995|72|72|GER',
       'Kevin Diks|DFC|1996|75|75|NED', 'Fabio Chiarodia|DFC|2005|68|76|ITA', 'Joe Scally|LD|2002|75|78|USA',
       'Lukas Ullrich|LI|2004|71|78|GER', 'Luca Netz|LI|2003|72|76|GER',
       'Julian Weigl|MCD|1995|76|76|GER', 'Rocco Reitz|MC|2002|76|80|GER', 'Philipp Sander|MC|1998|73|74|GER',
@@ -127,6 +129,7 @@
       'Ilyas Ansah|DC|2004|71|79|GER', 'Marin Ljubičić|DC|2002|71|75|CRO',
     ],
     'werder-bremen': [
+      'Cameron Puertas|MCO|1998|75|76|ESP',
       'Mio Backhaus|POR|2004|72|80|GER', 'Karl Hein|POR|2002|71|76|EST',
       'Marco Friedl|DFC|1998|76|76|AUT', 'Niklas Stark|DFC|1995|74|74|GER', 'Amos Pieper|DFC|1998|74|74|GER',
       'Julián Malatini|DFC|2001|72|75|ARG', 'Karim Coulibaly|DFC|2007|70|82|GER', 'Mitchell Weiser|LD|1994|76|76|GER',
@@ -171,6 +174,7 @@
       'Ragnar Ache|DC|1998|72|73|GER',
     ],
     'fc-st-pauli': [
+      'Mathias Pereira Lage|ED|1996|73|73|FRA',
       'Nikola Vasilj|POR|1995|76|76|BIH',
       'Eric Smith|DFC|1997|74|74|SWE', 'Hauke Wahl|DFC|1994|73|73|GER', 'Karol Mets|DFC|1993|71|71|EST',
       'Adam Dźwigała|DFC|1995|70|70|POL', 'David Nemeth|DFC|2001|71|74|AUT', 'Tomoya Ando|DFC|1999|70|72|JPN',
