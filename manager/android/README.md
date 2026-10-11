@@ -8,7 +8,7 @@ Compilación sin Android Studio (`tools/build-apk.sh`):
 - `ANDROID_JAR`: `org.robolectric:android-all` (Maven Central) o un `android.jar` del SDK.
 - `DX_JAR`: `com.jakewharton.android.repackaged:dalvik-dx` (Maven Central).
 - `SIGNER`: script que firma con `apk_sign_ts` (v1 + v2 + v3); `KEY`/`CERT`: `android/signing/*.pem`.
-- Opcionales: `COVER` (portada jpg) e `ICONS` (carpeta con `ic_<densidad>.png`). La foto de portada no se guarda en el repositorio.
+- `ICONS`: carpeta con `ic_<densidad>.png` para el icono del escritorio (la foto no se guarda en el repositorio).
 
 `signing/`: clave personal de esta app. Las actualizaciones deben firmarse con la misma clave para instalarse
 encima sin perder las carreras guardadas. Repositorio privado: no publicar.
