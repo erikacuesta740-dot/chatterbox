@@ -29,7 +29,7 @@
       'Kacper Tobiasz|POR|2002|69|74|POL', 'Gabriel Kobylak|POR|2002|64|70|POL',
       'Artur Jędrzejczyk|DFC|1987|65|65|POL', 'Kamil Piątkowski|DFC|2000|69|71|POL', 'Rafał Augustyniak|DFC|1993|68|68|POL',
       'Paweł Wszołek|LD|1992|68|68|POL', 'Rúben Vinagre|LI|1999|69|70|POR', 'Arkadiusz Reca|LI|1995|67|67|POL',
-      'Petar Stojanović|LD|1995|66|66|SVN', 'Juergen Elitim|MC|1999|69|70|COL', 'Claude Gonçalves|MCD|1994|67|67|POR',
+      'Petar Stojanović|LD|1995|66|66|SVN', 'Juergen Elitim|MC|1999|69|70|COL',
       'Bartosz Kapustka|MC|1996|69|69|POL', 'Wojciech Urbański|MC|2005|63|73|POL', 'Ryoya Morishita|EI|1997|69|69|JPN',
       'Kacper Chodyna|ED|1999|66|68|POL', 'Jean-Pierre Nsame|DC|1993|67|67|CMR', 'Antonio Čolak|DC|1993|68|68|CRO',
       'Mileta Rajović|DC|1999|68|69|DEN',

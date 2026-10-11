@@ -53,7 +53,7 @@
       'Mikkel Duelund|MCO|1997|66|66|DEN', 'Gift Links|ED|1998|67|68|RSA',
     ],
     'fc-nordsj-lland': [
-      'Jeppe Tverskov|MCD|1993|67|67|DEN', 'Oliver Villadsen|LD|1999|65|67|DEN',
+      'Oliver Villadsen|LD|1999|65|67|DEN',
       'Prince Amoako Junior|MC|2005|64|74|GHA',
     ],
     'randers-fc': [],

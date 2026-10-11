@@ -41,7 +41,7 @@
     ],
     'rosenborg': [
       'Ulrik Yttergård Jenssen|DFC|1996|66|66|NOR', 'Adrian Pereira|LI|1999|66|67|NOR',
-      'Erlend Dahl Reitan|LD|1997|66|66|NOR', 'Ole Selnæs|MC|1994|68|68|NOR', 'Edvard Tagseth|MC|2001|65|68|NOR',
+      'Erlend Dahl Reitan|LD|1997|66|66|NOR', 'Ole Selnæs|MC|1994|68|68|NOR',
       'Noah Holm|DC|2001|65|68|NOR',
     ],
     'brann': [
