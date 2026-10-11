@@ -198,7 +198,9 @@
     if (kind === 'loan') {
       const role = T.role(s, p);
       if (role === 'clave') return { error: s.clubs[p.clubId].name + ' no cede a un jugador clave.' };
-      talk.asking = roundMoney(T.reference(s, p).value * 0.08);
+      // Cesión sin compensación: el club pide que pagues al menos esta parte del salario.
+      talk.asking = 0;
+      talk.minShare = { rotacion: 75, joven: 50, suplente: 25 }[role] || 50;
     }
     s.market.talks[pid] = talk;
     return { talk };
@@ -215,16 +217,32 @@
     if (!talk || talk.stage !== 'club') return { error: 'No hay una negociación con el club en curso.' };
     const err = T.canApproach(s, p);
     if (err) return { error: err };
-    fee = Math.max(0, Math.round(fee));
-    if (fee > s.clubs[s.clubId].budget) return { error: 'No puedes ofrecer ' + U.money(fee) + ': tu presupuesto de fichajes es ' + U.money(s.clubs[s.clubId].budget) + '.' };
-    const rng = rngFor(s, talk, talk.rounds.length);
-    let ask = talk.asking;
     if (talk.kind === 'loan') {
       wageShare = U.clamp(Math.round(wageShare || 0), 0, 100);
-      ask = talk.asking + (100 - wageShare) / 100 * p.wage * 20;
       talk.wageShare = wageShare;
+      talk.rounds.push({ by: 'tú', wageShare });
+      const min = talk.minShare || 50;
+      if (wageShare >= min) {
+        talk.fee = 0;
+        talk.stage = 'player';
+        talk.rounds.push({ by: 'club', text: 'Acepta la cesión. Confírmala para cerrarla.' });
+        return { status: 'accepted' };
+      }
+      talk.patience--;
+      if (talk.patience <= 0 || wageShare + 50 < min) {
+        talk.stage = 'failed';
+        s.market.blocked[pid] = s.season.label + ':' + (T.window(s).kind || 'x');
+        talk.rounds.push({ by: 'club', text: 'No acepta: quiere que pagues más salario. Rompe las negociaciones.' });
+        return { status: 'rejected' };
+      }
+      talk.rounds.push({ by: 'club', text: 'Pide que pagues al menos el ' + min + '% del salario.' });
+      return { status: 'counter', minShare: min };
     }
-    const round = { by: 'tú', fee, wageShare: talk.kind === 'loan' ? wageShare : undefined };
+    fee = Math.max(0, Math.round(fee));
+    if (fee > s.clubs[s.clubId].budget) return { error: 'No puedes ofrecer ' + U.money(fee) + ': tu presupuesto es ' + U.money(s.clubs[s.clubId].budget) + '.' };
+    const rng = rngFor(s, talk, talk.rounds.length);
+    const ask = talk.asking;
+    const round = { by: 'tú', fee };
     talk.rounds.push(round);
     if (fee >= ask) {
       talk.fee = fee;
@@ -240,10 +258,9 @@
       return { status: 'rejected' };
     }
     const counter = roundMoney(Math.max(ask * rng.range(0.94, 1), (fee + ask) / 2 + (ask - fee) * 0.25));
-    talk.asking = Math.min(talk.asking, talk.kind === 'loan' ? talk.asking : counter);
-    talk.rounds.push({ by: 'club', fee: talk.kind === 'loan' ? talk.asking : counter, text: 'Contraoferta del club.' });
-    if (talk.kind !== 'loan') talk.asking = counter;
-    return { status: 'counter', counter: talk.kind === 'loan' ? ask : counter };
+    talk.rounds.push({ by: 'club', fee: counter, text: 'Contraoferta del club.' });
+    talk.asking = counter;
+    return { status: 'counter', counter };
   };
 
   /* Fase 2: contrato con el jugador. */
@@ -318,7 +335,7 @@
       club.budget -= talk.fee;
       s.clubs[parent].budget += talk.fee;
       fin.expense.transfers += talk.fee;
-      ledger(s, 'Cesión de ' + p.name, -talk.fee, 'transfer');
+      if (talk.fee) ledger(s, 'Cesión de ' + p.name, -talk.fee, 'transfer');
       record(s, 'loan-in', p, parent, s.clubId, talk.fee, { wageShare: talk.wageShare });
       C().news(s, 'transfer', 'Llega cedido ' + p.name, p.name + ' llega cedido desde ' + s.clubs[parent].name + ' hasta final de temporada. Pagas el ' + talk.wageShare + '% de su salario.', { pid: p.id });
     } else {

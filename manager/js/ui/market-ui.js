@@ -149,26 +149,31 @@
       '<p class="small muted">El presupuesto es único: paga el traspaso, la prima y un año del salario que añadas.</p>';
     if (t.rounds.length) {
       html += '<div class="stack small">' + t.rounds.map((r) => '<div class="row" style="align-items:flex-start"><b style="width:64px;flex:none">' + esc(r.by === 'tú' ? 'Tú' : r.by === 'club' ? 'Club' : 'Jugador') + '</b><span class="grow">' +
-        [r.fee != null ? 'Traspaso ' + U.money(r.fee) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
+        [r.fee != null && t.kind !== 'loan' ? 'Traspaso ' + U.money(r.fee) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
     }
     if (t.stage === 'failed') {
       html += '<p class="notice">Negociación terminada sin acuerdo.</p><button class="btn block" data-act="talk-close" data-id="' + pid + '">Cerrar</button>';
     } else if (t.stage === 'club') {
-      const def = t.kind === 'loan' ? t.asking : Math.round(t.asking * 0.9);
-      html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
-        '<p class="small">' + (t.kind === 'loan' ? 'Cesión hasta final de temporada. ' + esc(club.name) + ' pide una compensación de ' + U.money(t.asking) + ' si pagas el 50% del salario (pagar más salario reduce la compensación).' : esc(club.name) + ' pide <b>' + U.money(t.asking) + '</b>. Paciencia del club: ' + t.patience + '.') + '</p>' +
-        '<label class="field" for="tk-fee">' + (t.kind === 'loan' ? 'Compensación (€)' : 'Tu oferta (€)') + '<input class="input" id="tk-fee" name="fee" type="number" inputmode="numeric" min="0" step="50000" value="' + def + '"></label>' +
-        (t.kind === 'loan' ? '<label class="field" for="tk-share">Porcentaje del salario que pagas<select class="input" id="tk-share" name="share">' + [0, 25, 50, 75, 100].map((x) => '<option value="' + x + '"' + (x === t.wageShare ? ' selected' : '') + '>' + x + '% (' + U.wage(Math.round(p.wage * x / 100)) + ')</option>').join('') + '</select></label>' : '') +
-        '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
+      if (t.kind === 'loan') {
+        html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
+          '<p class="small">Cesión hasta final de temporada, sin compensación. ' + esc(club.name) + ' decide según la parte del salario que pagues. Paciencia del club: ' + t.patience + '.</p>' +
+          '<label class="field" for="tk-share">Porcentaje del salario que pagas<select class="input" id="tk-share" name="share">' + [0, 25, 50, 75, 100].map((x) => '<option value="' + x + '"' + (x === t.wageShare ? ' selected' : '') + '>' + x + '% (' + U.wage(Math.round(p.wage * x / 100)) + ')</option>').join('') + '</select></label>' +
+          '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
+      } else {
+        html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
+          '<p class="small">' + esc(club.name) + ' pide <b>' + U.money(t.asking) + '</b>. Puedes ofrecer la cantidad exacta que quieras. Paciencia del club: ' + t.patience + '.</p>' +
+          '<label class="field" for="tk-fee">Tu oferta (€)<input class="input" id="tk-fee" name="fee" type="number" inputmode="numeric" min="0" step="1" value="' + Math.round(t.asking * 0.9) + '"></label>' +
+          '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
+      }
     } else {
       const d = t.demand;
       html += '<form class="stack" data-submit="talk-player" data-id="' + pid + '">' +
         '<p class="small">' + (t.kind === 'loan' ? 'Acuerdo con ' + esc(club.name) + ' cerrado. Confirma la cesión: el jugador cobrará lo acordado y tú pagas el ' + t.wageShare + '% (' + U.wage(Math.round(p.wage * t.wageShare / 100)) + ').'
           : 'Petición del jugador: <b>' + U.wage(d.wage) + '</b>, ' + d.years + (d.years > 1 ? ' años' : ' año') + ', prima de ' + U.money(d.bonus) + '. Paciencia: ' + t.patience + '.') + '</p>' +
         (t.kind === 'loan' ? '' :
-          '<label class="field" for="tk-wage">Salario (€/semana)<input class="input" id="tk-wage" name="wage" type="number" inputmode="numeric" min="0" step="250" value="' + d.wage + '"></label>' +
+          '<label class="field" for="tk-wage">Salario (€/semana)<input class="input" id="tk-wage" name="wage" type="number" inputmode="numeric" min="0" step="1" value="' + d.wage + '"></label>' +
           '<div class="grid-2"><label class="field" for="tk-years">Años<select class="input" id="tk-years" name="years">' + [1, 2, 3, 4, 5].map((y) => '<option' + (y === d.years ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></label>' +
-          '<label class="field" for="tk-bonus">Prima de firma (€)<input class="input" id="tk-bonus" name="bonus" type="number" inputmode="numeric" min="0" step="10000" value="' + d.bonus + '"></label></div>') +
+          '<label class="field" for="tk-bonus">Prima de firma (€)<input class="input" id="tk-bonus" name="bonus" type="number" inputmode="numeric" min="0" step="1" value="' + d.bonus + '"></label></div>') +
         (t.fee ? '<p class="small muted">Traspaso acordado: ' + U.money(t.fee) + '. Se paga al firmar.</p>' : '') +
         '<div class="btn-row"><button class="btn primary" type="submit">' + (t.kind === 'loan' ? 'Confirmar cesión' : 'Ofrecer contrato') + '</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
     }
@@ -269,7 +274,7 @@
       '<label class="field" for="mk-agemax">Edad máx.<input class="input" id="mk-agemax" name="ageMax" type="number" inputmode="numeric" value="' + esc(f.ageMax) + '"></label></div>' +
       '<div class="grid-3"><label class="field" for="mk-ovr">Media mín.<input class="input" id="mk-ovr" name="ovr" type="number" inputmode="numeric" value="' + esc(f.ovr) + '"></label>' +
       '<label class="field" for="mk-pot">Pot. mín.<input class="input" id="mk-pot" name="pot" type="number" inputmode="numeric" value="' + esc(f.pot) + '"></label>' +
-      '<label class="field" for="mk-price">Precio máx. (€)<input class="input" id="mk-price" name="price" type="number" inputmode="numeric" step="100000" value="' + esc(f.price) + '"></label></div>' +
+      '<label class="field" for="mk-price">Precio máx. (€)<input class="input" id="mk-price" name="price" type="number" inputmode="numeric" step="1" value="' + esc(f.price) + '"></label></div>' +
       '<label class="field" for="mk-sort">Ordenar por<select class="input" id="mk-sort" name="sort">' + opt('ovr', f.sort, 'Media') + opt('pot', f.sort, 'Potencial') + opt('age', f.sort, 'Edad') + opt('value', f.sort, 'Valor') + '</select></label>' +
       '<div class="btn-row"><button class="btn primary" type="submit">Buscar</button><button class="btn ghost" type="button" data-act="mk-reset">Limpiar filtros</button></div></form>' +
       '<section class="card"><div class="section-head"><h3>Resultados</h3><span class="small muted">' + total + (total > 80 ? ' (mostrando 80)' : '') + '</span></div><div class="plist">' +
@@ -329,7 +334,7 @@
   A['offer-counter'] = (d) => {
     const o = App.s.market.offers.find((x) => x.id === d.id);
     H.sheet('<h2>Pedir más</h2><p class="small">Oferta actual: ' + U.money(o.fee) + '. Si pides demasiado, el club puede retirarla.</p><form class="stack" data-submit="offer-counter" data-id="' + o.id + '">' +
-      '<label class="field" for="oc-fee">Cantidad que pides (€)<input class="input" id="oc-fee" name="fee" type="number" inputmode="numeric" step="100000" value="' + T.roundMoney(o.fee * 1.2) + '"></label>' +
+      '<label class="field" for="oc-fee">Cantidad que pides (€)<input class="input" id="oc-fee" name="fee" type="number" inputmode="numeric" step="1" value="' + T.roundMoney(o.fee * 1.2) + '"></label>' +
       '<div class="btn-row"><button class="btn" type="button" data-act="sheet-close">Cancelar</button><button class="btn primary" type="submit">Enviar</button></div></form>');
   };
   F['offer-counter'] = async (fd, form) => {

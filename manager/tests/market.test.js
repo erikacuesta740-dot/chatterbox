@@ -153,3 +153,22 @@ test('partidas antiguas se migran sin perder datos', () => {
   C.playMatchday(s);
   assert.deepStrictEqual(C.validate(s), []);
 });
+
+test('cesión sin compensación y ofertas con cantidades exactas', () => {
+  const s = fresh('real-betis', 'loanin');
+  const p = C.squad(s, 'real-madrid').sort((a, b) => a.ovr - b.ovr)[2];
+  const { talk } = T.start(s, p.id, 'loan');
+  assert.ok(talk && talk.asking === 0, 'sin compensación');
+  const b0 = s.clubs[s.clubId].budget;
+  if (talk.minShare > 25) assert.strictEqual(T.offerClub(s, p.id, 0, talk.minShare - 25).status, 'counter');
+  assert.strictEqual(T.offerClub(s, p.id, 0, 100).status, 'accepted');
+  assert.strictEqual(T.offerContract(s, p.id, { wage: 0, years: 1, bonus: 0 }).status, 'done');
+  assert.strictEqual(p.clubId, s.clubId);
+  assert.strictEqual(s.clubs[s.clubId].budget, b0 - p.wage * 52, 'solo se reserva un año de su salario');
+  // Oferta de traspaso con una cantidad cualquiera (sin redondeos)
+  const q = C.squad(s, 'real-oviedo').sort((a, b) => b.ovr - a.ovr)[3];
+  const t2 = T.start(s, q.id, 'buy').talk;
+  const exact = Math.round(t2.asking * 0.97) + 1678;
+  T.offerClub(s, q.id, exact);
+  assert.strictEqual(t2.rounds[0].fee, exact);
+});
