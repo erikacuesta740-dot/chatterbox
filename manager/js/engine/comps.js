@@ -545,9 +545,22 @@
     return null;
   }
 
+  /* Primera fecha libre para estos clubes: después de cualquier partido suyo ya programado y de una final de copa que aún puedan jugar. */
+  function freeStart(s, clubIds, from) {
+    let d = from;
+    K.fixtures(s).forEach((f) => { if ((clubIds.includes(f.home) || clubIds.includes(f.away)) && U.addDays(f.date, 3) > d) d = U.addDays(f.date, 3); });
+    K.all(s).forEach((c) => {
+      if (c.type !== 'cup' || c.winner || !c.alive.some((id) => clubIds.includes(id))) return;
+      const fin = K.weekDate(s.season.year, K.FINAL.CUP[0], K.FINAL.CUP[1]);
+      if (U.addDays(fin, 3) > d) d = U.addDays(fin, 3);
+    });
+    return d;
+  }
+
   function drawPlayoffRound(s, comp, startDate) {
     const spec = nextPlayoffRound(s, comp);
     if (!spec) return false;
+    startDate = freeStart(s, [].concat(...spec.pairs), startDate);
     const round = { name: spec.name, date: startDate, barrage: !!spec.barrage, ties: spec.pairs.map(([a, b]) => poTie(comp, spec.name, a, b, startDate, spec.legs, spec.tb, spec.neutral)) };
     comp.rounds.push(round);
     round.ties.forEach((t) => { [t.a, t.b].forEach((id) => { if (!comp.participants.includes(id)) comp.participants.push(id); }); });

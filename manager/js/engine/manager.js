@@ -70,7 +70,7 @@
     const m = s.manager;
     const rng = U.rng(s.seed + ':offers:' + s.season.label + ':' + (s.week || 0) + ':' + m.rep);
     const cur = s.clubs[s.clubId];
-    const ceiling = m.rep + 14;
+    const ceiling = m.rep + 24;
     const floor = desperate ? 0 : cur.rep + 2;
     let cands = Object.values(s.clubs).filter((c) => c.leagueId && c.id !== s.clubId && c.rep <= ceiling && c.rep >= floor);
     if (desperate && cands.length < 3) cands = Object.values(s.clubs).filter((c) => c.leagueId && c.id !== s.clubId).sort((a, b) => a.rep - b.rep).slice(0, 8);

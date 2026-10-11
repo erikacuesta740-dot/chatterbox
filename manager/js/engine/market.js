@@ -101,14 +101,15 @@
 
   /* Interés del jugador en fichar por el club del usuario. */
   T.willingness = function (s, p) {
+    // La reputación pesa poco: solo un abismo de nivel hace que un jugador diga que no, y el sobresueldo es pequeño.
     const mine = s.clubs[s.clubId];
     const from = p.clubId ? s.clubs[p.clubId] : null;
     const need = p.ovr - 10;
-    if (mine.rep < need - 10) return { ok: false, premium: 1, reason: p.name + ' no quiere jugar en un club de menor nivel (reputación ' + mine.rep + ').' };
+    if (mine.rep < need - 30) return { ok: false, premium: 1, reason: p.name + ' no quiere jugar en un club de tan poco nivel (reputación ' + mine.rep + ').' };
     let premium = 1;
-    if (mine.rep < need) premium += (need - mine.rep) * 0.03;
-    if (from && from.rep > mine.rep + 5) premium += 0.1;
-    return { ok: true, premium: Math.round(premium * 100) / 100, reason: premium > 1.05 ? 'Pide un salario más alto para dar el paso.' : 'Le interesa el proyecto.' };
+    if (mine.rep < need) premium += Math.min(0.2, (need - mine.rep) * 0.008);
+    if (from && from.rep > mine.rep + 10) premium += 0.04;
+    return { ok: true, premium: Math.round(premium * 100) / 100, reason: premium > 1.05 ? 'Pide algo más de salario para dar el paso.' : 'Le interesa el proyecto.' };
   };
 
   T.preferredYears = (p) => (p.age <= 23 ? 5 : p.age <= 27 ? 4 : p.age <= 30 ? 3 : p.age <= 32 ? 2 : 1);
