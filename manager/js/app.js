@@ -351,17 +351,25 @@
     const warns = LU.warnings(lu, squad);
     let html = '<section class="card stack"><label class="switch" for="auto-lu"><span><b>Elegir el once automáticamente</b><br><span class="small muted">Si lo activas, el juego cambia tu once antes de cada partido. Desactivado, tu alineación no se toca.</span></span>' +
       '<input type="checkbox" id="auto-lu" data-change="auto-lineup"' + (s.settings.autoLineup ? ' checked' : '') + '></label>' +
-      (s.settings.autoLineup ? '' : '<label class="switch" for="auto-fix"><span><b>Sustituir a los que no estén disponibles</b><br><span class="small muted">Si un titular se lesiona o está sancionado: activado, entra el mejor suplente; desactivado, la simulación se para y te pregunta.</span></span>' +
+      (s.settings.autoLineup ? '' : '<label class="switch" for="auto-fix"><span><b>Suplentes automáticos</b><br><span class="small muted">Si un titular se lesiona o está sancionado, entra el mejor suplente de su puesto y, cuando se recupera, vuelve solo al once. Desactivado, la simulación se para y te pregunta.</span></span>' +
         '<input type="checkbox" id="auto-fix" data-change="auto-fix"' + (s.settings.autoFix ? ' checked' : '') + '></label>') + '</section>';
     html += '<div class="chips">' + Object.keys(LU.FORMATIONS).map((fm) => '<button class="chip ' + (fm === lu.formation ? 'on' : '') + '" data-act="formation" data-v="' + fm + '">' + fm + '</button>').join('') + '</div>';
     html += '<div class="pitch"><svg class="lines" viewBox="0 0 68 92" preserveAspectRatio="none" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.4"><rect x="2" y="2" width="64" height="88"/><path d="M2 46h64"/><circle cx="34" cy="46" r="8"/><rect x="16" y="2" width="36" height="14"/><rect x="16" y="76" width="36" height="14"/><rect x="26" y="2" width="16" height="5"/><rect x="26" y="85" width="16" height="5"/></svg>' +
       slots.map((sl, i) => {
         const p = s.players[lu.xi[i]];
         const fit = p ? PL.fitLabel(PL.fit(p, sl[0])) : '';
+        const cover = lu.covers && lu.covers[i] != null;
         return '<button class="slot fit-' + fit + '" style="left:' + sl[1] + '%;top:' + sl[2] + '%" data-act="slot" data-i="' + i + '">' +
-          (p ? UI.ovr(p.ovr) : '<span class="ovr empty">?</span>') + '<span class="lab">' + esc(p ? (p.number ? p.number + ' ' : '') + shortName(p.name) : 'Vacío') + '</span><span class="p">' + sl[0] + '</span></button>';
+          (p ? UI.ovr(p.ovr) : '<span class="ovr empty">?</span>') + '<span class="lab">' + esc(p ? (p.number ? p.number + ' ' : '') + shortName(p.name) : 'Vacío') + '</span><span class="p">' + sl[0] + (cover ? ' ↺' : '') + '</span></button>';
       }).join('') + '</div>';
-    html += '<p class="small muted">Toca un jugador del campo para cambiarlo. Borde amarillo: adaptado a la posición. Borde rojo: fuera de posición.</p>';
+    html += '<p class="small muted">Toca un jugador del campo para cambiarlo. Borde amarillo: adaptado a la posición. Borde rojo: fuera de posición. ↺: suplente temporal.</p>';
+    const covers = Object.keys(lu.covers || {}).filter((k) => s.players[lu.covers[k]] && s.players[lu.xi[k]]);
+    if (covers.length) {
+      html += '<section class="card"><h3>Suplentes temporales</h3><div class="stack small">' + covers.map((k) => {
+        const o = s.players[lu.covers[k]];
+        return '<div class="row"><b style="width:44px">' + LU.slots(lu.formation)[k] + '</b><span class="grow">' + esc(s.players[lu.xi[k]].name) + ' sustituye a ' + esc(o.name) + ' (' + esc(PL.statusOf(o).label.toLowerCase()) + ')</span></div>';
+      }).join('') + '</div><p class="small muted">' + (s.settings.autoFix ? 'Cuando se recupere, el titular vuelve solo al once.' : 'Activa «Suplentes automáticos» para que el titular vuelva solo al recuperarse.') + '</p></section>';
+    }
     html += '<section class="card"><h3>Avisos</h3>' + (warns.length ? '<div class="warn-list">' + warns.map((w) => '<div class="warn-item ' + w.level + '"><i></i><span>' + esc(w.text) + '</span></div>').join('') + '</div>' : '<p class="small" style="color:var(--good)">Alineación sin problemas.</p>') + '</section>';
     const tk = C.takers(s, s.clubId);
     const sqSorted = squad.slice().sort((a, b) => b.ovr - a.ovr);
@@ -569,6 +577,7 @@
       const j = lu.xi.indexOf(d.id);
       lu.xi[i] = d.id;
       if (j >= 0) lu.xi[j] = prev; // intercambio dentro del once
+      if (lu.covers) { delete lu.covers[i]; if (j >= 0) delete lu.covers[j]; }
       lu.bench = rebuildBench(s, lu);
       closeSheet();
       if (s.settings.autoLineup) { s.settings.autoLineup = false; toast('Alineación manual activada'); }

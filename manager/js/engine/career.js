@@ -176,7 +176,7 @@
       history: [],
       archive: [],
       transfers: [],
-      settings: { autoLineup: false, autoFix: false, lineupV2: true },
+      settings: { autoLineup: false, autoFix: true, lineupV2: true, lineupV3: true },
     };
     setupSeason(s);
     MCM.market.init(s);
@@ -197,10 +197,7 @@
     let lineup;
     if (clubId === s.clubId && !s.settings.autoLineup && club.lineup) {
       lineup = club.lineup;
-      const changes = LU.repair(lineup, squad);
-      changes.forEach((ch) => {
-        if (notices) notices.push((ch.out ? C.nameOf(s, ch.out) + ' no está disponible. ' : '') + (ch.in ? 'Entra ' + C.nameOf(s, ch.in) + ' como ' + ch.pos + '.' : 'No hay sustituto para ' + ch.pos + '.'));
-      });
+      C.fixLineup(s, notices);
     } else {
       lineup = LU.autoPick(squad, club.tactics.formation);
       if (clubId === s.clubId) club.lineup = lineup;
@@ -325,10 +322,47 @@
   };
   /* ¿Hay que parar antes del partido del usuario para que decida los cambios? */
   C.lineupBlocked = (s) => !s.settings.autoFix && C.lineupIssues(s).length > 0;
-  /* Cambia a los no disponibles por los mejores suplentes (con permiso del usuario). */
-  C.fixLineup = function (s) {
+  /*
+   * Sustituciones temporales: si un titular de tu once no puede jugar, entra el mejor suplente para su puesto;
+   * cuando el titular vuelve a estar disponible, recupera su sitio. lu.covers = { hueco: id del titular original }.
+   */
+  C.fixLineup = function (s, notices) {
     const club = s.clubs[s.clubId];
-    return LU.repair(club.lineup, C.squad(s, s.clubId));
+    const lu = club.lineup;
+    if (!lu) return [];
+    const squad = C.squad(s, s.clubId);
+    const ok = (p) => p && p.clubId === s.clubId && MCM.players.isAvailable(p);
+    const slots = LU.slots(lu.formation);
+    lu.covers = lu.covers || {};
+    const changes = [];
+    // 1) Vuelven los titulares recuperados
+    Object.keys(lu.covers).forEach((k) => {
+      const i = Number(k);
+      const orig = s.players[lu.covers[k]];
+      if (!orig || orig.clubId !== s.clubId) { delete lu.covers[k]; return; }
+      if (!ok(orig) || lu.xi.includes(orig.id)) return;
+      const sub = lu.xi[i];
+      lu.xi[i] = orig.id;
+      delete lu.covers[k];
+      changes.push({ pos: slots[i], in: orig.id, out: sub, back: true });
+      if (notices) notices.push(orig.name + ' se ha recuperado y vuelve al once' + (sub ? ' en lugar de ' + C.nameOf(s, sub) : '') + '.');
+    });
+    // 2) Entran los mejores suplentes por los que no pueden jugar
+    slots.forEach((pos, i) => {
+      const cur = s.players[lu.xi[i]];
+      if (ok(cur)) return;
+      const cands = squad.filter((p) => ok(p) && !lu.xi.includes(p.id));
+      const fitting = cands.filter((p) => MCM.players.fit(p, pos) >= 0.88);
+      const pool = fitting.length ? fitting : cands;
+      pool.sort((a, b) => LU.slotScore(b, pos) - LU.slotScore(a, pos));
+      const rep = pool[0] || null;
+      if (cur && cur.clubId === s.clubId && lu.covers[i] == null) lu.covers[i] = cur.id;
+      lu.xi[i] = rep ? rep.id : null;
+      changes.push({ pos, in: rep ? rep.id : null, out: cur ? cur.id : null });
+      if (notices) notices.push((cur ? cur.name + ' no puede jugar (' + MCM.players.statusOf(cur).label.toLowerCase() + '). ' : '') + (rep ? 'Entra ' + rep.name + ' como ' + pos + ' hasta que vuelva.' : 'No hay sustituto para ' + pos + '.'));
+    });
+    if (changes.length) lu.bench = squad.filter((p) => ok(p) && !lu.xi.includes(p.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 9).map((p) => p.id);
+    return changes;
   };
 
   /* Prepara un partido (lados y opciones) sin jugarlo: lo usa el partido en directo. */
@@ -878,11 +912,12 @@
 
   /** Actualiza partidas guardadas con versiones anteriores sin perder nada. */
   C.migrate = function (s) {
+    // Sustituciones temporales automáticas (el titular vuelve al recuperarse): activadas por defecto.
+    if (s.settings && !s.settings.lineupV3) { s.settings.lineupV3 = true; s.settings.autoFix = true; }
     // La alineación ya no se cambia sin permiso: las partidas antiguas pasan a once manual.
     if (s.settings && !s.settings.lineupV2) {
       s.settings.lineupV2 = true;
       s.settings.autoLineup = false;
-      s.settings.autoFix = false;
       const club = s.clubs[s.clubId];
       if (club && (!club.lineup || club.lineup.formation !== club.tactics.formation)) club.lineup = LU.autoPick(C.squad(s, s.clubId), club.tactics.formation);
     }

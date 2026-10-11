@@ -184,3 +184,27 @@ test('alineación manual: sin permiso no se cambia y la simulación se para a pr
   const f = C.playUserMatch(s);
   assert.ok(f && !f.blocked && f.played);
 });
+
+test('suplentes automáticos: entra el mejor de su puesto y el titular vuelve al recuperarse', () => {
+  const s = fresh('real-betis', 'cover');
+  assert.strictEqual(s.settings.autoFix, true, 'activado por defecto');
+  const club = s.clubs[s.clubId];
+  const before = club.lineup.xi.slice();
+  const slots = MCM.lineup.slots(club.lineup.formation);
+  const i = slots.indexOf('DFC');
+  const star = s.players[before[i]];
+  star.injury = { type: 'Esguince', weeks: 3, days: 21 };
+  const f1 = C.playUserMatch(s);
+  assert.ok(f1 && !f1.blocked && f1.played, 'no se para la simulación');
+  const sub = s.players[club.lineup.xi[i]];
+  assert.notStrictEqual(sub.id, star.id);
+  assert.ok(MCM.players.fit(sub, 'DFC') >= 0.88, 'el suplente puede jugar de central');
+  assert.strictEqual(club.lineup.covers[i], star.id);
+  // El resto del once no cambia
+  before.forEach((id, k) => { if (k !== i) assert.strictEqual(club.lineup.xi[k], id); });
+  star.injury = null;
+  const f2 = C.playUserMatch(s);
+  assert.ok(f2 && f2.played);
+  assert.strictEqual(club.lineup.xi[i], star.id, 'el titular vuelve al once');
+  assert.ok(!club.lineup.covers[i]);
+});
