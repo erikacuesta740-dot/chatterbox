@@ -17,6 +17,8 @@
   // ---------- Consultas ----------
   C.club = (s, id) => s.clubs[id];
   C.userClub = (s) => s.clubs[s.clubId];
+  /* Clubes dirigidos por personas: el tuyo y, en el modo online, el de tu amigo. */
+  C.isHuman = (s, id) => id === s.clubId || !!(s.humans && s.humans.includes(id));
   C.userLeague = (s) => s.leagues[s.clubs[s.clubId].leagueId];
   C.squad = (s, clubId) => s.clubs[clubId].squad.map((id) => s.players[id]).filter(Boolean);
   C.nameOf = (s, pid) => (s.players[pid] ? s.players[pid].name : '—');
@@ -145,6 +147,7 @@
     s.week = 0;
     const club = C.userClub(s);
     club.lineup = LU.autoPick(C.squad(s, s.clubId), club.tactics.formation);
+    (s.humans || []).forEach((id) => { if (id !== s.clubId && s.clubs[id]) s.clubs[id].lineup = LU.autoPick(C.squad(s, id), s.clubs[id].tactics.formation); });
     s.season.finished = false;
   }
 
@@ -195,12 +198,13 @@
     const club = s.clubs[clubId];
     const squad = C.squad(s, clubId);
     let lineup;
-    if (clubId === s.clubId && !s.settings.autoLineup && club.lineup) {
+    const manual = clubId === s.clubId ? !s.settings.autoLineup : C.isHuman(s, clubId);
+    if (C.isHuman(s, clubId) && manual && club.lineup) {
       lineup = club.lineup;
-      C.fixLineup(s, notices);
+      C.fixLineup(s, notices, clubId);
     } else {
       lineup = LU.autoPick(squad, club.tactics.formation);
-      if (clubId === s.clubId) club.lineup = lineup;
+      if (C.isHuman(s, clubId)) club.lineup = lineup;
     }
     return {
       club,
@@ -208,7 +212,7 @@
       xi: lineup.xi.map((id) => (id ? s.players[id] : null)),
       bench: (lineup.bench || []).map((id) => s.players[id]).filter(Boolean),
       tactics: club.tactics,
-      takers: clubId === s.clubId ? C.takers(s, clubId) : null,
+      takers: C.isHuman(s, clubId) ? C.takers(s, clubId) : null,
       injuryFactor: clubId === s.clubId && MCM.life ? MCM.life.intensity(s).inj : 1,
     };
   }
@@ -326,12 +330,13 @@
    * Sustituciones temporales: si un titular de tu once no puede jugar, entra el mejor suplente para su puesto;
    * cuando el titular vuelve a estar disponible, recupera su sitio. lu.covers = { hueco: id del titular original }.
    */
-  C.fixLineup = function (s, notices) {
-    const club = s.clubs[s.clubId];
+  C.fixLineup = function (s, notices, clubId) {
+    const cid = clubId || s.clubId;
+    const club = s.clubs[cid];
     const lu = club.lineup;
     if (!lu) return [];
-    const squad = C.squad(s, s.clubId);
-    const ok = (p) => p && p.clubId === s.clubId && MCM.players.isAvailable(p);
+    const squad = C.squad(s, cid);
+    const ok = (p) => p && p.clubId === cid && MCM.players.isAvailable(p);
     const slots = LU.slots(lu.formation);
     lu.covers = lu.covers || {};
     const changes = [];
@@ -339,7 +344,7 @@
     Object.keys(lu.covers).forEach((k) => {
       const i = Number(k);
       const orig = s.players[lu.covers[k]];
-      if (!orig || orig.clubId !== s.clubId) { delete lu.covers[k]; return; }
+      if (!orig || orig.clubId !== cid) { delete lu.covers[k]; return; }
       if (!ok(orig) || lu.xi.includes(orig.id)) return;
       const sub = lu.xi[i];
       lu.xi[i] = orig.id;
@@ -356,7 +361,7 @@
       const pool = fitting.length ? fitting : cands;
       pool.sort((a, b) => LU.slotScore(b, pos) - LU.slotScore(a, pos));
       const rep = pool[0] || null;
-      if (cur && cur.clubId === s.clubId && lu.covers[i] == null) lu.covers[i] = cur.id;
+      if (cur && cur.clubId === cid && lu.covers[i] == null) lu.covers[i] = cur.id;
       lu.xi[i] = rep ? rep.id : null;
       changes.push({ pos, in: rep ? rep.id : null, out: cur ? cur.id : null });
       if (notices) notices.push((cur ? cur.name + ' no puede jugar (' + MCM.players.statusOf(cur).label.toLowerCase() + '). ' : '') + (rep ? 'Entra ' + rep.name + ' como ' + pos + ' hasta que vuelva.' : 'No hay sustituto para ' + pos + '.'));
@@ -408,8 +413,10 @@
       };
       matchNews(s, f, comp);
       if (isLeague) streakNews(s);
-      MCM.mgr.afterMatch(s, f);
-      if (MCM.life) MCM.life.maybePress(s, f);
+      if (!s.online) {
+        MCM.mgr.afterMatch(s, f);
+        if (MCM.life) MCM.life.maybePress(s, f);
+      }
     }
     return res;
   };
@@ -499,6 +506,7 @@
     while ((s.week || 0) < week) {
       s.week = (s.week || 0) + 1;
       MCM.market.weekly(s);
+      if (s.online) continue; // modo online: sin cantera, entrenamiento, prensa ni despidos
       if (MCM.dev) MCM.dev.weekly(s);
       if (MCM.life) MCM.life.weekly(s);
       MCM.mgr.checkSack(s);
@@ -779,8 +787,8 @@
     MCM.mgr.seasonAwards(s);
 
     // Economía de la temporada, cesiones que vuelven y contratos del usuario que vencen
-    const finRes = MCM.market.closeSeason(s, myRow.pos, tables[userL.id].length, objectiveMet);
-    MCM.market.endOfSeasonContracts(s);
+    const finRes = s.online ? { net: 0 } : MCM.market.closeSeason(s, myRow.pos, tables[userL.id].length, objectiveMet);
+    if (s.online) MCM.market.returnLoans(s); else MCM.market.endOfSeasonContracts(s);
 
     // Evolución, edad, contratos y retiradas
     const developments = [];
@@ -800,8 +808,11 @@
       const retireP = p.age >= 38 ? 0.95 : p.age >= 36 ? 0.55 : p.age >= 34 ? 0.2 : (p.age >= 32 && p.ovr < 62 ? 0.25 : 0);
       if (!p.academy && rng.chance(retireP)) { retired.push(p); return; }
       if (club && !p.academy && p.contractEnd <= year + 1) {
-        if (club.id === s.clubId) {
+        if (club.id === s.clubId && !s.online) {
           // Ya gestionado en endOfSeasonContracts (renovar es decisión del usuario).
+        } else if (s.online && C.isHuman(s, club.id)) {
+          // Modo online: los contratos de los clubes de los jugadores se renuevan solos.
+          p.contractEnd = year + 1 + rng.int(1, 3);
         } else if (rng.chance(renewChance(club, p))) {
           p.contractEnd = year + 1 + rng.int(1, 4);
           p.wage = PL.fairWage(p, club.wealth);
@@ -893,8 +904,10 @@
     developments.slice(0, 6).forEach((d) => C.news(s, 'youth', d.name + (d.to > d.from ? ' progresa' : ' baja su nivel'), d.name + ' pasa de ' + d.from + ' a ' + d.to + ' de media.'));
     if (intakeUser.length) C.news(s, 'youth', 'Llegan ' + intakeUser.length + ' canteranos', 'Se incorporan desde la cantera: ' + intakeUser.map((p) => p.name + ' (' + p.pos + ', ' + p.age + ' años, pot. ' + p.pot + ')').join(', ') + '.');
     C.news(s, 'finance', 'Balance económico ' + s.season.label, 'Ingresos: ' + U.money(finRes.income) + '. Gastos: ' + U.money(finRes.expense) + '. Resultado: ' + U.money(finRes.net) + '.');
-    MCM.market.newSeasonBudgets(s, objectiveMet, finRes.net);
-    MCM.dev.endSeason(s, objectiveMet);
+    if (!s.online) {
+      MCM.market.newSeasonBudgets(s, objectiveMet, finRes.net);
+      MCM.dev.endSeason(s, objectiveMet);
+    }
     const retiredMine = retired.filter((p) => p.clubId === s.clubId);
     if (retiredMine.length) C.news(s, 'contract', 'Retiradas', retiredMine.map((p) => p.name).join(', ') + ' se retira' + (retiredMine.length > 1 ? 'n' : '') + ' del fútbol profesional.');
 
@@ -905,7 +918,7 @@
     setupSeason(s, prevTables, cupWinners);
     const club = C.userClub(s);
     C.news(s, 'board', 'Objetivo ' + s.season.label, 'La directiva fija el objetivo: ' + club.objective.text.toLowerCase() + '.');
-    MCM.mgr.endSeason(s, objectiveMet, myMove ? myMove.type : null, myRow.pos);
+    if (!s.online) MCM.mgr.endSeason(s, objectiveMet, myMove ? myMove.type : null, myRow.pos);
     s.updatedAt = new Date().toISOString();
     return s.history[0];
   };

@@ -67,6 +67,8 @@
 
   async function persist() {
     if (!App.s) return;
+    // Modo online: no se guarda una carrera local; se mandan tus órdenes a la sala.
+    if (App.s.online) { if (App.onlinePersist) App.onlinePersist(); return; }
     App.saveState = 'saving';
     paintSave();
     try {

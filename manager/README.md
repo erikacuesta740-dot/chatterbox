@@ -62,6 +62,17 @@ los partidos se simulan.
 **Instalación (Etapa 5)**
 - PWA instalable con icono y funcionamiento sin conexión cuando se aloja en su propia web (por ejemplo, GitHub Pages).
 
+## Carrera online contra un amigo
+
+En la pantalla de inicio, «Jugar online con un amigo»:
+1. Uno crea la sala y elige la liga (el mundo incluye las demás ligas de ese país, copas y Europa) y su club.
+2. El otro escribe el código de la sala y elige otro club de esa liga.
+3. Cada uno dirige su once, táctica y lanzadores desde su móvil. Al pulsar los dos «Listo», se juega hasta el
+   siguiente partido de cualquiera de los dos. Hay cara a cara, clasificación y cambio de temporada.
+
+Funciona solo dentro de claude.ai (las salas viven en la base de datos del juego): el amigo debe estar invitado por
+correo como **Editor** y el enlace público desactivado. En este modo no hay fichajes, cantera ni prensa.
+
 ## Jugar con tu hermano
 
 1. Abre el juego en claude.ai y pulsa **Compartir**.
@@ -109,6 +120,7 @@ npm test                      # 29 pruebas: calendario, simulación, mercado, co
 npm run serve                 # servidor local en :8765
 node tests/e2e.js             # recorrido completo en un navegador con tamaño de iPhone
 node tests/cloud-e2e.js       # guardado online, otro dispositivo y privacidad entre usuarios (base simulada)
+node tests/online-e2e.js      # modo online con dos navegadores a la vez (base simulada)
 npm run build                 # dist/modo-carrera-manager.html (archivo único)
 node tools/check-data.js      # revisa ligas y plantillas reales
 node tools/sync-scripts.js    # enlaza en index.html los archivos de js/data/rosters y js/data/world

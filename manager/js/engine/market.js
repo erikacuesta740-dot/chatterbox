@@ -582,7 +582,8 @@
     const key = s.season.label + ':' + w.kind;
     if (s.market.aiWindows[key]) return;
     s.market.aiWindows[key] = true;
-    const clubs = Object.values(s.clubs).filter((c) => c.id !== s.clubId);
+    // Los clubes dirigidos por personas no compran ni venden por su cuenta.
+    const clubs = Object.values(s.clubs).filter((c) => !C().isHuman(s, c.id));
     const moves = [];
     const n = w.kind === 'summer' ? 40 : 15;
     for (let i = 0; i < n * 3 && moves.length < n; i++) {
@@ -634,6 +635,7 @@
     const rng = U.rng(s.seed + ':mk:' + s.season.label + ':' + (s.week || 0));
     s.market.fin.expense.wages += C().wageBill(s, s.clubId);
     aiWindow(s, rng);
+    if (s.online) return;
     generateOffers(s, rng);
     // Aviso de cesiones con opción de compra que terminan este verano
     if (s.week === 36) {
@@ -678,6 +680,17 @@
     s.market.blocked = {};
     C().news(s, 'board', 'Presupuestos ' + C().seasonLabel(s.season.year + 1),
       'Presupuesto: ' + U.money(club.budget) + ' para fichajes, primas y salarios. Masa salarial actual: ' + U.wage(bill) + '.');
+  };
+
+  /* Solo las cesiones que terminan (modo online). */
+  T.returnLoans = function (s) {
+    const year = s.season.year;
+    Object.values(s.players).forEach((p) => {
+      if (p.loan && p.loan.until <= year + 1) {
+        if (s.clubs[p.loan.parent]) { C().movePlayer(s, p, p.loan.parent); p.wage = p.loan.fullWage || p.wage; }
+        p.loan = null;
+      }
+    });
   };
 
   /* Fin de temporada: cesiones que vuelven y contratos del usuario que expiran. Antes de envejecer. */

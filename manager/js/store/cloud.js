@@ -67,12 +67,17 @@
     return new Response(stream).text();
   }
 
+  Cloud.pack = gzip;
+  Cloud.unpack = gunzip;
+
   async function withRetry(fn) {
     try { return await fn(); } catch (e) {
       if (e && e.code === 'unavailable') { await new Promise((r) => setTimeout(r, 400 + Math.random() * 800)); return fn(); }
       throw e;
     }
   }
+
+  Cloud.retry = withRetry;
 
   Cloud.list = async function () {
     if (!Cloud.ready()) return [];

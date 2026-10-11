@@ -222,7 +222,7 @@ const URL = process.env.MCM_URL || 'http://127.0.0.1:8765/index.html';
   await snap('24-canterano');
 
   step('cierre de temporada desde la interfaz');
-  await page.evaluate(() => { const s = MCM.app.s; while (!MCM.career.seasonFinished(s)) MCM.career.playMatchday(s); MCM.app.go('hub', {}, { root: true }); });
+  await page.evaluate(() => { const s = MCM.app.s; while (!MCM.career.seasonFinished(s)) { if (s.dev) s.dev.confidence = 100; MCM.career.playMatchday(s); } MCM.app.go('hub', {}, { root: true }); });
   const st = await page.evaluate(() => ({ fin: MCM.career.seasonFinished(MCM.app.s), unemployed: !!(MCM.app.s.manager && MCM.app.s.manager.unemployed), view: document.querySelector('h1') && document.querySelector('h1').textContent }));
   console.log('   estado', JSON.stringify(st));
   await page.waitForSelector('[data-act="end-season-ask"]');

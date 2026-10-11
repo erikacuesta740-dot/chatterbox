@@ -208,3 +208,33 @@ test('suplentes automáticos: entra el mejor de su puesto y el titular vuelve al
   assert.strictEqual(club.lineup.xi[i], star.id, 'el titular vuelve al once');
   assert.ok(!club.lineup.covers[i]);
 });
+
+test('modo online: dos clubes humanos, órdenes, jornadas y cambio de temporada', () => {
+  const O = MCM.online;
+  const s = O.createWorld({ leagueId: 'ESP2', clubId: 'albacete-balompie', seed: 'on1', code: 'TEST1' });
+  assert.deepStrictEqual(Object.keys(s.leagues).sort(), ['ESP1', 'ESP2']);
+  O.addHuman(s, 'cordoba-cf');
+  const ord = O.extractOrders(s, 'cordoba-cf');
+  ord.tactics.formation = '4-4-2';
+  ord.lineup = null;
+  O.applyOrders(s, ord);
+  assert.strictEqual(s.clubs['cordoba-cf'].tactics.formation, '4-4-2');
+  // Órdenes con jugadores ajenos se ignoran
+  O.applyOrders(s, { clubId: 'cordoba-cf', lineup: { formation: '4-4-2', xi: [C.squad(s, 'real-madrid')[0].id] }, tactics: { formation: '4-4-2' } });
+  assert.ok(s.clubs['cordoba-cf'].lineup.xi.every((id) => !id || s.players[id].clubId === 'cordoba-cf'));
+  const sq0 = s.clubs['cordoba-cf'].squad.slice().sort();
+  let steps = 0;
+  while (!C.seasonFinished(s) && steps < 200) {
+    const r = O.step(s);
+    assert.ok(r.results.every((x) => s.humans.includes(x.home) || s.humans.includes(x.away)));
+    steps++;
+  }
+  assert.ok(C.seasonFinished(s) && steps > 20);
+  assert.strictEqual(s.clubId, 'albacete-balompie', 'cada dispositivo conserva su club');
+  assert.ok(O.headToHead(s).length >= 2, 'al menos ida y vuelta de liga (y copa si coinciden)');
+  assert.deepStrictEqual(s.clubs['cordoba-cf'].squad.slice().sort(), sq0, 'la IA no toca la plantilla de un jugador humano');
+  const r = O.step(s);
+  assert.strictEqual(r.kind, 'season');
+  assert.ok(!C.seasonFinished(s));
+  assert.deepStrictEqual(C.validate(s), []);
+});
