@@ -176,7 +176,7 @@
       history: [],
       archive: [],
       transfers: [],
-      settings: { autoLineup: true },
+      settings: { autoLineup: false, autoFix: false, lineupV2: true },
     };
     setupSeason(s);
     MCM.market.init(s);
@@ -305,6 +305,31 @@
     }
     return { knockout: true, prior, neutral: !!f.neutral, noShootout: !!f.noShootout };
   }
+
+  /* Titulares que no pueden jugar (lesión o sanción) en la alineación manual del usuario. */
+  C.lineupIssues = function (s) {
+    if (s.settings.autoLineup || (s.manager && s.manager.unemployed)) return [];
+    const club = s.clubs[s.clubId];
+    const lu = club.lineup;
+    if (!lu) return [];
+    const slots = LU.slots(lu.formation);
+    const out = [];
+    // Un hueco vacío solo cuenta si hay alguien disponible para ocuparlo.
+    const spare = C.squad(s, s.clubId).some((p) => MCM.players.isAvailable(p) && !lu.xi.includes(p.id));
+    lu.xi.forEach((id, i) => {
+      const p = id && s.players[id];
+      if (!p || p.clubId !== s.clubId) { if (spare) out.push({ pos: slots[i], pid: null, name: null, reason: 'hueco vacío' }); }
+      else if (!MCM.players.isAvailable(p)) out.push({ pos: slots[i], pid: p.id, name: p.name, reason: MCM.players.statusOf(p).label.toLowerCase() });
+    });
+    return out;
+  };
+  /* ¿Hay que parar antes del partido del usuario para que decida los cambios? */
+  C.lineupBlocked = (s) => !s.settings.autoFix && C.lineupIssues(s).length > 0;
+  /* Cambia a los no disponibles por los mejores suplentes (con permiso del usuario). */
+  C.fixLineup = function (s) {
+    const club = s.clubs[s.clubId];
+    return LU.repair(club.lineup, C.squad(s, s.clubId));
+  };
 
   /* Prepara un partido (lados y opciones) sin jugarlo: lo usa el partido en directo. */
   C.prepareMatch = function (s, f, notices) {
@@ -506,6 +531,8 @@
   C.playUserMatch = function (s) {
     const f = C.playUntilUserMatch(s);
     if (!f) return null;
+    // Sin permiso para tocar la alineación: se para antes del partido.
+    if (C.lineupBlocked(s)) return { blocked: true, fixture: f, issues: C.lineupIssues(s) };
     playFixture(s, f, []);
     updateLeagueProgress(s);
     MCM.comps.progress(s);
@@ -527,19 +554,31 @@
   /** Simula el resto de la temporada (o hasta una fecha). */
   C.simulateUntil = function (s, maxDate) {
     let guard = 0;
+    let blocked = null;
     for (;;) {
       const d = nextDate(s, maxDate, null);
       if (!d || guard++ > 800) break;
+      const mine = C.fixtures(s).some((f) => !f.played && f.date === d && (f.home === s.clubId || f.away === s.clubId));
+      if (mine) {
+        passDays(s, d);
+        if (C.lineupBlocked(s)) {
+          playDate(s, d, true);
+          blocked = { blocked: true, issues: C.lineupIssues(s) };
+          break;
+        }
+      }
       playDate(s, d, false);
     }
     if (C.seasonFinished(s)) s.season.finished = true;
     s.updatedAt = new Date().toISOString();
+    return blocked;
   };
 
   /** Compatibilidad: juega el siguiente partido del usuario (o el resto si ya no tiene). */
   C.playMatchday = function (s) {
-    const f = C.playUserMatch(s);
-    if (!f) C.simulateUntil(s);
+    let f = C.playUserMatch(s);
+    if (f && f.blocked) { C.fixLineup(s); f = C.playUserMatch(s); }
+    if (!f) { if (C.simulateUntil(s)) { C.fixLineup(s); C.simulateUntil(s); } }
     return { userFixture: f };
   };
 
@@ -613,6 +652,19 @@
 
   const MIN_LINES = { GK: 2, DEF: 7, MID: 6, ATT: 4 };
   const LINE_POS = { GK: ['POR'], DEF: ['DFC', 'DFC', 'LD', 'LI'], MID: ['MC', 'MCD', 'MCO', 'MD', 'MI'], ATT: ['DC', 'ED', 'EI'] };
+
+  /* Probabilidad de que un club de la IA renueve a un jugador que acaba contrato:
+     las estrellas y los titulares casi siempre renuevan; que salga uno gratis es raro. */
+  function renewChance(club, p) {
+    const level = MCM.generator.baseOvr(club.rep);
+    let k = 0.75;
+    if (p.ovr >= level) k = 0.93;
+    if (p.ovr >= level + 4 || p.ovr >= 80) k = 0.975;
+    if (p.ovr >= 85) k = 0.985;
+    if (p.age >= 33) k -= 0.3;
+    else if (p.age >= 31) k -= 0.1;
+    return U.clamp(k, 0.3, 0.99);
+  }
 
   C.endSeason = function (s) {
     C.simulateUntil(s);
@@ -716,7 +768,7 @@
       if (club && !p.academy && p.contractEnd <= year + 1) {
         if (club.id === s.clubId) {
           // Ya gestionado en endOfSeasonContracts (renovar es decisión del usuario).
-        } else if (rng.chance(0.78)) {
+        } else if (rng.chance(renewChance(club, p))) {
           p.contractEnd = year + 1 + rng.int(1, 4);
           p.wage = PL.fairWage(p, club.wealth);
         } else {
@@ -826,6 +878,14 @@
 
   /** Actualiza partidas guardadas con versiones anteriores sin perder nada. */
   C.migrate = function (s) {
+    // La alineación ya no se cambia sin permiso: las partidas antiguas pasan a once manual.
+    if (s.settings && !s.settings.lineupV2) {
+      s.settings.lineupV2 = true;
+      s.settings.autoLineup = false;
+      s.settings.autoFix = false;
+      const club = s.clubs[s.clubId];
+      if (club && (!club.lineup || club.lineup.formation !== club.tactics.formation)) club.lineup = LU.autoPick(C.squad(s, s.clubId), club.tactics.formation);
+    }
     // Reglas de liga actualizadas (ascensos directos, playoffs) para partidas creadas antes.
     (MCM.DATA.leagues || []).forEach((D) => {
       const L = s.leagues[D.id];

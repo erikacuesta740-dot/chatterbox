@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const M = require('./load.js');
 const C = M.career;
+// En las pruebas generales se permiten los cambios de titulares no disponibles (hay una prueba específica para el bloqueo).
+const create0 = C.create;
+C.create = (o) => { const s = create0(o); s.settings.autoFix = true; return s; };
 const T = M.market;
 const D = M.dev;
 
@@ -171,4 +174,26 @@ test('cesión sin compensación y ofertas con cantidades exactas', () => {
   const exact = Math.round(t2.asking * 0.97) + 1678;
   T.offerClub(s, q.id, exact);
   assert.strictEqual(t2.rounds[0].fee, exact);
+});
+
+test('cesión de 2 temporadas con opción de compra y su ejecución', () => {
+  const s = fresh('real-betis', 'loanopt');
+  const p = C.squad(s, 'villarreal-cf').filter((x) => x.contractEnd >= s.season.year + 2).sort((a, b) => a.ovr - b.ovr)[3];
+  p.contractEnd = Math.max(p.contractEnd, s.season.year + 3);
+  const { talk } = T.start(s, p.id, 'loan');
+  const min = T.optionMin(s, p);
+  assert.strictEqual(T.offerClub(s, p.id, 0, 100, { years: 2, option: Math.round(min * 0.8) }).status, 'counter', 'opción baja: contraoferta');
+  assert.strictEqual(T.offerClub(s, p.id, 0, 100, { years: 2, option: min + 1 }).status, 'accepted');
+  assert.strictEqual(T.offerContract(s, p.id, { wage: 0, years: 1, bonus: 0 }).status, 'done');
+  assert.strictEqual(p.loan.until, s.season.year + 2);
+  assert.strictEqual(p.loan.option, min + 1);
+  // Tras la primera temporada sigue cedido
+  MCM.market.endOfSeasonContracts(s);
+  assert.strictEqual(p.clubId, s.clubId, 'cesión de 2 años: no vuelve en el primer verano');
+  s.clubs[s.clubId].budget += 200e6;
+  const parentBudget = s.clubs[p.loan.parent].budget;
+  const r = T.exerciseOption(s, p.id);
+  assert.strictEqual(r.status, 'done');
+  assert.strictEqual(p.loan, null);
+  assert.strictEqual(s.clubs['villarreal-cf'].budget, parentBudget + min + 1);
 });

@@ -211,7 +211,10 @@
   function rngFor(s, talk, step) { return U.rng(s.seed + ':talk:' + talk.pid + ':' + talk.kind + ':' + s.season.label + ':' + step); }
 
   /* Fase 1: oferta al club (traspaso: fee; cesión: fee de cesión y % de salario que pagas). */
-  T.offerClub = function (s, pid, fee, wageShare) {
+  /* Precio mínimo de una opción de compra que acepta el club propietario. */
+  T.optionMin = (s, p) => roundMoney(T.askingPrice(s, p) * 1.05);
+
+  T.offerClub = function (s, pid, fee, wageShare, loanOpts) {
     const talk = T.talkFor(s, pid);
     const p = s.players[pid];
     if (!talk || talk.stage !== 'club') return { error: 'No hay una negociación con el club en curso.' };
@@ -219,9 +222,31 @@
     if (err) return { error: err };
     if (talk.kind === 'loan') {
       wageShare = U.clamp(Math.round(wageShare || 0), 0, 100);
+      const lo = loanOpts || {};
+      const years = lo.years === 2 ? 2 : 1;
+      const option = Math.max(0, Math.round(lo.option || 0));
       talk.wageShare = wageShare;
-      talk.rounds.push({ by: 'tú', wageShare });
+      talk.years = years;
+      talk.option = option;
+      talk.rounds.push({ by: 'tú', wageShare, loanYears: years, option });
       const min = talk.minShare || 50;
+      const optMin = T.optionMin(s, p);
+      if (option && option < optMin) {
+        talk.patience--;
+        if (talk.patience <= 0 || option < optMin * 0.5) {
+          talk.stage = 'failed';
+          s.market.blocked[pid] = s.season.label + ':' + (T.window(s).kind || 'x');
+          talk.rounds.push({ by: 'club', text: 'La opción de compra le parece muy baja. Rompe las negociaciones.' });
+          return { status: 'rejected' };
+        }
+        talk.rounds.push({ by: 'club', text: 'Acepta poner opción de compra, pero de al menos ' + U.money(optMin) + '.' });
+        return { status: 'counter', optionMin: optMin };
+      }
+      if (years === 2 && p.contractEnd < s.season.year + 2) {
+        talk.rounds.push({ by: 'club', text: 'Su contrato termina antes: solo puede ser una temporada.' });
+        talk.years = 1;
+        return { status: 'counter', maxYears: 1 };
+      }
       if (wageShare >= min) {
         talk.fee = 0;
         talk.stage = 'player';
@@ -330,14 +355,15 @@
     } else if (talk.kind === 'loan') {
       const parent = from;
       C().movePlayer(s, p, s.clubId);
-      p.loan = { parent, until: s.season.year + 1, wageShare: talk.wageShare, fullWage: p.wage };
+      p.loan = { parent, until: s.season.year + (talk.years === 2 ? 2 : 1), wageShare: talk.wageShare, fullWage: p.wage, option: talk.option || 0 };
       p.wage = Math.round(p.wage * talk.wageShare / 100);
       club.budget -= talk.fee;
       s.clubs[parent].budget += talk.fee;
       fin.expense.transfers += talk.fee;
       if (talk.fee) ledger(s, 'Cesión de ' + p.name, -talk.fee, 'transfer');
       record(s, 'loan-in', p, parent, s.clubId, talk.fee, { wageShare: talk.wageShare });
-      C().news(s, 'transfer', 'Llega cedido ' + p.name, p.name + ' llega cedido desde ' + s.clubs[parent].name + ' hasta final de temporada. Pagas el ' + talk.wageShare + '% de su salario.', { pid: p.id });
+      C().news(s, 'transfer', 'Llega cedido ' + p.name, p.name + ' llega cedido desde ' + s.clubs[parent].name + ' hasta junio de ' + p.loan.until + '. Pagas el ' + talk.wageShare + '% de su salario.' +
+        (p.loan.option ? ' Opción de compra: ' + U.money(p.loan.option) + '.' : ''), { pid: p.id });
     } else {
       if (from) { s.clubs[from].budget += talk.fee; }
       C().movePlayer(s, p, s.clubId);
@@ -362,6 +388,34 @@
     s._tr = {};
     return { status: 'done' };
   }
+
+  /* Ejecutar la opción de compra de un jugador cedido en tu club. */
+  T.exerciseOption = function (s, pid) {
+    const p = s.players[pid];
+    if (!p || p.clubId !== s.clubId || !p.loan || p.loan.parent === s.clubId || !p.loan.option) return { error: 'No hay opción de compra para este jugador.' };
+    const club = s.clubs[s.clubId];
+    const fee = p.loan.option;
+    const full = p.loan.fullWage || p.wage;
+    const total = T.dealCost(fee, full - p.wage);
+    if (total > club.budget) return { error: 'La opción cuesta ' + U.money(fee) + ' más un año de la parte de salario que aún no pagas (' + U.money(Math.max(0, full - p.wage) * T.WAGE_TO_BUDGET) + '). Dispones de ' + U.money(club.budget) + '.' };
+    T.pool(s);
+    const before = C().wageBill(s, s.clubId);
+    const parent = p.loan.parent;
+    club.budget -= fee;
+    if (s.clubs[parent]) s.clubs[parent].budget += fee;
+    s.market.fin.expense.transfers += fee;
+    ledger(s, 'Opción de compra: ' + p.name, -fee, 'transfer');
+    p.wage = full;
+    p.loan = null;
+    p.contractEnd = Math.max(p.contractEnd, s.season.year + 2);
+    const delta = C().wageBill(s, s.clubId) - before;
+    if (delta > 0) { club.budget -= delta * T.WAGE_TO_BUDGET; ledger(s, 'Reserva de un año de salario', -delta * T.WAGE_TO_BUDGET, 'wages'); }
+    T.pool(s);
+    record(s, 'buy', p, parent, s.clubId, fee, { option: true });
+    C().news(s, 'transfer', 'Opción de compra: ' + p.name, 'Ejecutas la opción de compra de ' + p.name + ' por ' + U.money(fee) + '. Contrato hasta junio de ' + p.contractEnd + '.', { pid: p.id });
+    s._tr = {};
+    return { status: 'done', fee };
+  };
 
   // ---------- Ventas, cesiones y rescisiones ----------
   T.toggleListed = function (s, pid) {
@@ -553,7 +607,8 @@
     // Agentes libres que encuentran equipo
     s.freeAgents.slice().forEach((id) => {
       const p = s.players[id];
-      if (!p || !rng.chance(0.12)) return;
+      // Los agentes libres buenos encuentran equipo antes.
+      if (!p || !rng.chance(p.ovr >= 80 ? 0.5 : p.ovr >= 75 ? 0.25 : 0.12)) return;
       const c = clubs.filter((x) => x.squad.length < 27 && p.ovr >= MCM.generator.baseOvr(x.rep) - 4 && p.ovr <= MCM.generator.baseOvr(x.rep) + 4);
       if (!c.length) return;
       const club = rng.pick(c);
@@ -579,6 +634,11 @@
     s.market.fin.expense.wages += C().wageBill(s, s.clubId);
     aiWindow(s, rng);
     generateOffers(s, rng);
+    // Aviso de cesiones con opción de compra que terminan este verano
+    if (s.week === 36) {
+      const opt = C().squad(s, s.clubId).filter((p) => p.loan && p.loan.parent !== s.clubId && p.loan.option && p.loan.until <= s.season.year + 1);
+      if (opt.length) C().news(s, 'transfer', 'Opciones de compra pendientes', opt.map((p) => p.name + ' (' + U.money(p.loan.option) + ')').join(', ') + '. Si no las ejecutas antes de cerrar la temporada, vuelven a su club.');
+    }
     // Aviso de contratos que vencen a mitad de temporada
     if (s.week === 20) {
       const exp = C().squad(s, s.clubId).filter((p) => !p.loan && p.contractEnd <= s.season.year + 1);
@@ -627,6 +687,7 @@
       if (p.loan && p.loan.until <= year + 1) {
         const parent = p.loan.parent;
         if (s.clubs[parent]) {
+          if (p.clubId === s.clubId && parent !== s.clubId) C().news(s, 'transfer', p.name + ' vuelve a ' + s.clubs[parent].name, 'Termina la cesión de ' + p.name + (p.loan.option ? ' sin que ejecutaras la opción de compra.' : '.'), { pid: p.id });
           C().movePlayer(s, p, parent);
           p.wage = p.loan.fullWage || p.wage;
           if (parent === s.clubId) C().news(s, 'transfer', p.name + ' vuelve de su cesión', p.name + ' regresa a la plantilla tras su cesión.', { pid: p.id });
@@ -635,6 +696,7 @@
       }
     });
     C().squad(s, s.clubId).forEach((p) => {
+      if (p.loan) return;
       if (p.contractEnd <= year + 1) {
         C().movePlayer(s, p, null);
         p.listed = false;

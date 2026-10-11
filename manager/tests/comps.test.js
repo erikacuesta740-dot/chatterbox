@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const M = require('./load.js');
 const C = M.career;
+// En las pruebas generales se permiten los cambios de titulares no disponibles (hay una prueba específica para el bloqueo).
+const create0 = C.create;
+C.create = (o) => { const s = create0(o); s.settings.autoFix = true; return s; };
 const K = M.comps;
 
 const fresh = (club, seed) => C.create({ dataset: M.DATA.realDataset(), clubId: club || 'real-betis', seed: seed || 'cp' });
@@ -159,4 +162,25 @@ test('día a día: entrenamiento, ojeadores, cantera, charlas y prensa', () => {
   assert.ok(Lf.talk(s, p.id, 'praise').error, 'no se puede repetir la charla enseguida');
   if (s.press) { Lf.answerPress(s, s.press.questions.map(() => 0)); assert.strictEqual(s.press, null); }
   assert.deepStrictEqual(C.validate(s), []);
+});
+
+test('alineación manual: sin permiso no se cambia y la simulación se para a preguntar', () => {
+  const s = fresh('real-betis', 'lu');
+  s.settings.autoFix = false;
+  assert.strictEqual(s.settings.autoLineup, false);
+  const club = s.clubs[s.clubId];
+  const before = club.lineup.xi.slice();
+  const p = s.players[before[9]];
+  p.injury = { type: 'Esguince', weeks: 3, days: 21 };
+  const r = C.playUserMatch(s);
+  assert.ok(r && r.blocked, 'se para antes del partido');
+  assert.ok(r.issues.some((x) => x.pid === p.id));
+  assert.deepStrictEqual(club.lineup.xi, before, 'la alineación no se toca');
+  assert.ok(!r.fixture.played);
+  const b2 = C.simulateUntil(s);
+  assert.ok(b2 && b2.blocked, 'simular el resto también se para');
+  C.fixLineup(s);
+  assert.ok(!club.lineup.xi.includes(p.id), 'con permiso entra un suplente');
+  const f = C.playUserMatch(s);
+  assert.ok(f && !f.blocked && f.played);
 });

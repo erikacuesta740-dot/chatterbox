@@ -108,9 +108,30 @@
     if (target) App.go('match', { id: target.id, comp: target.comp });
     else App.go('hub', {}, { root: true });
   }
+  // Antes de un partido con titulares no disponibles (y sin permiso para cambiarlos), se pregunta.
+  function blockedSheet(issues) {
+    H.sheet('<h2>Revisa tu alineación</h2><p class="small">Antes del próximo partido hay titulares que no pueden jugar:</p><div class="stack small">' +
+      issues.map((x) => '<div class="row"><b style="width:44px">' + esc(x.pos) + '</b><span class="grow">' + (x.name ? esc(x.name) + ' · ' + esc(x.reason) : 'Hueco vacío') + '</span></div>').join('') + '</div>' +
+      '<p class="small muted">No se ha cambiado nada. Elige qué hacer:</p><div class="stack">' +
+      '<button class="btn primary block" data-act="lineup-edit">Cambiar yo la alineación</button>' +
+      '<button class="btn block" data-act="lineup-fix-once">Que entren los mejores suplentes (solo esta vez)</button>' +
+      '<button class="btn ghost block" data-act="sheet-close">Cancelar</button></div>');
+  }
+  A['lineup-edit'] = () => { H.closeSheet(); App.go('tactics', {}); };
+  A['lineup-fix-once'] = async () => {
+    const ch = C.fixLineup(App.s);
+    await H.persist();
+    H.closeSheet();
+    H.toast(ch.length ? ch.filter((c) => c.in).map((c) => C.nameOf(App.s, c.in)).join(', ') + (ch.length > 1 ? ' entran' : ' entra') + ' en el once' : 'Alineación revisada');
+    App.render();
+  };
   A['sim-match'] = async () => {
     await H.busy('Simulando…');
-    try { const f = C.playUserMatch(App.s); await afterSim(f); } finally { H.unbusy(); }
+    try {
+      const f = C.playUserMatch(App.s);
+      if (f && f.blocked) { await H.persist(); H.unbusy(); App.go('hub', {}, { root: true }); blockedSheet(f.issues); return; }
+      await afterSim(f);
+    } finally { H.unbusy(); }
   };
   A['sim-ask'] = () => {
     const s = App.s;
@@ -128,11 +149,13 @@
     await H.busy('Simulando partidos…');
     try {
       let last = null;
-      for (let i = 0; i < Number(d.n); i++) { const f = C.playUserMatch(App.s); if (!f) break; last = f; }
-      if (Number(d.n) >= 999) C.simulateUntil(App.s);
+      let blocked = null;
+      for (let i = 0; i < Number(d.n); i++) { const f = C.playUserMatch(App.s); if (!f) break; if (f.blocked) { blocked = f; break; } last = f; }
+      if (!blocked && Number(d.n) >= 999) blocked = C.simulateUntil(App.s);
       await H.persist();
-      H.toast(last ? 'Simulado hasta el ' + U.dateLabel(last.date) : 'Temporada simulada');
+      if (!blocked) H.toast(last ? 'Simulado hasta el ' + U.dateLabel(last.date) : 'Temporada simulada');
       App.go('hub', {}, { root: true });
+      if (blocked) { H.unbusy(); blockedSheet(blocked.issues); }
     } finally { H.unbusy(); }
   };
   A['sim-until'] = async (d) => {
@@ -140,18 +163,26 @@
     await H.busy('Simulando partidos…');
     try {
       let guard = 0;
+      let blocked = null;
       for (;;) {
         const nf = C.nextUserFixture(App.s);
         if (!nf || nf.id === d.id || guard++ > 60) break;
-        C.playUserMatch(App.s);
+        const r = C.playUserMatch(App.s);
+        if (r && r.blocked) { blocked = r; break; }
       }
       await H.persist();
       App.go('hub', {}, { root: true });
+      if (blocked) { H.unbusy(); blockedSheet(blocked.issues); }
     } finally { H.unbusy(); }
   };
   A['sim-rest'] = async () => {
     await H.busy('Simulando el resto de la temporada…');
-    try { C.simulateUntil(App.s); await H.persist(); App.go('hub', {}, { root: true }); } finally { H.unbusy(); }
+    try {
+      const blocked = C.simulateUntil(App.s);
+      await H.persist();
+      App.go('hub', {}, { root: true });
+      if (blocked) { H.unbusy(); blockedSheet(blocked.issues); }
+    } finally { H.unbusy(); }
   };
   A.match = (d) => App.go('match', { id: d.id, comp: d.comp || d.league });
 
@@ -357,6 +388,7 @@
       const f = C.playUntilUserMatch(s);
       if (!f) { H.toast('No hay partido pendiente'); return; }
       await H.persist();
+      if (C.lineupBlocked(s)) { H.unbusy(); App.render(); blockedSheet(C.lineupIssues(s)); return; }
       const notices = [];
       const prep = C.prepareMatch(s, f, notices);
       const side = f.home === s.clubId ? 0 : 1;

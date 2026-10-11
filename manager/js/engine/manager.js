@@ -95,7 +95,7 @@
     s.manager.unemployed = false;
     s.manager.offers = [];
     s.manager.stints.push({ clubId: club.id, club: club.name, from: s.season.label, to: null });
-    s.settings.autoLineup = true;
+    // Nuevo club: once inicial propuesto (luego no se cambia sin permiso).
     club.lineup = MCM.lineup.autoPick(C().squad(s, club.id), club.tactics.formation);
     if (s.market) {
       s.market.talks = {};

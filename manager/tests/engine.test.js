@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const M = require('./load.js');
 const C = M.career;
+// En las pruebas generales se permiten los cambios de titulares no disponibles (hay una prueba específica para el bloqueo).
+const create0 = C.create;
+C.create = (o) => { const s = create0(o); s.settings.autoFix = true; return s; };
 
 test('calendario: doble vuelta completa, sin duplicados ni equipos repetidos por jornada', () => {
   const ids = Array.from({ length: 20 }, (_, i) => 'c' + i);

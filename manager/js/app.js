@@ -349,8 +349,10 @@
     const slots = LU.FORMATIONS[lu.formation];
     const t = club.tactics;
     const warns = LU.warnings(lu, squad);
-    let html = '<section class="card"><label class="switch" for="auto-lu"><span><b>Alineación automática</b><br><span class="small muted">El asistente elige el mejor once disponible antes de cada partido.</span></span>' +
-      '<input type="checkbox" id="auto-lu" data-change="auto-lineup"' + (s.settings.autoLineup ? ' checked' : '') + '></label></section>';
+    let html = '<section class="card stack"><label class="switch" for="auto-lu"><span><b>Elegir el once automáticamente</b><br><span class="small muted">Si lo activas, el juego cambia tu once antes de cada partido. Desactivado, tu alineación no se toca.</span></span>' +
+      '<input type="checkbox" id="auto-lu" data-change="auto-lineup"' + (s.settings.autoLineup ? ' checked' : '') + '></label>' +
+      (s.settings.autoLineup ? '' : '<label class="switch" for="auto-fix"><span><b>Sustituir a los que no estén disponibles</b><br><span class="small muted">Si un titular se lesiona o está sancionado: activado, entra el mejor suplente; desactivado, la simulación se para y te pregunta.</span></span>' +
+        '<input type="checkbox" id="auto-fix" data-change="auto-fix"' + (s.settings.autoFix ? ' checked' : '') + '></label>') + '</section>';
     html += '<div class="chips">' + Object.keys(LU.FORMATIONS).map((fm) => '<button class="chip ' + (fm === lu.formation ? 'on' : '') + '" data-act="formation" data-v="' + fm + '">' + fm + '</button>').join('') + '</div>';
     html += '<div class="pitch"><svg class="lines" viewBox="0 0 68 92" preserveAspectRatio="none" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.4"><rect x="2" y="2" width="64" height="88"/><path d="M2 46h64"/><circle cx="34" cy="46" r="8"/><rect x="16" y="2" width="36" height="14"/><rect x="16" y="76" width="36" height="14"/><rect x="26" y="2" width="16" height="5"/><rect x="26" y="85" width="16" height="5"/></svg>' +
       slots.map((sl, i) => {
@@ -545,14 +547,18 @@
       const club = C.userClub(s);
       const i = Number(d.i);
       const pos = LU.slots(club.lineup.formation)[i];
-      const squad = C.squad(s, s.clubId).sort((a, b) => LU.slotScore(b, pos) - LU.slotScore(a, pos));
+      // Solo los que pueden jugar en ese puesto (natural o adaptado); con «ver todos», la plantilla entera.
+      const all = d.all === '1';
+      const squad = C.squad(s, s.clubId).filter((p) => all || PL.fit(p, pos) >= 0.88).sort((a, b) => LU.slotScore(b, pos) - LU.slotScore(a, pos));
       const cur = club.lineup.xi[i];
-      sheet('<h2>Elegir ' + esc(PL.POSITIONS[pos].name.toLowerCase()) + ' (' + pos + ')</h2><div class="plist">' + squad.map((p) => {
+      sheet('<h2>Elegir ' + esc(PL.POSITIONS[pos].name.toLowerCase()) + ' (' + pos + ')</h2>' +
+        '<p class="small muted">' + (all ? 'Toda la plantilla.' : 'Solo jugadores que pueden jugar de ' + pos + '.') + '</p><div class="plist">' + (squad.length ? '' : '<p class="small muted">Nadie de la plantilla juega en este puesto.</p>') + squad.map((p) => {
         const fit = PL.fitLabel(PL.fit(p, pos));
         const inXi = club.lineup.xi.indexOf(p.id);
         const meta = (fit === 'natural' ? 'Posición natural' : fit === 'adaptado' ? 'Adaptado' : 'Fuera de posición') + (inXi >= 0 ? ' · en el once (' + LU.slots(club.lineup.formation)[inXi] + ')' : '');
         return UI.playerRow(p, { act: 'pick-slot', extra: ' data-i="' + i + '"', meta, disabled: !PL.isAvailable(p) || p.id === cur });
-      }).join('') + '</div><button class="btn" data-act="sheet-close">Cerrar</button>');
+      }).join('') + '</div><div class="btn-row">' + (all ? '<button class="btn ghost" data-act="slot" data-i="' + i + '">Solo los de su puesto</button>' : '<button class="btn ghost" data-act="slot" data-i="' + i + '" data-all="1">Ver todos</button>') +
+        '<button class="btn" data-act="sheet-close">Cerrar</button></div>');
     },
     'pick-slot': async (d) => {
       const s = App.s;
@@ -747,6 +753,7 @@
       await persist();
       toast('Guardado');
     },
+    'auto-fix': async (el) => { App.s.settings.autoFix = el.checked; await persist(); App.render(); },
     'auto-lineup': async (el) => {
       App.s.settings.autoLineup = el.checked;
       if (el.checked) { const club = C.userClub(App.s); club.lineup = LU.autoPick(C.squad(App.s, App.s.clubId), club.tactics.formation); }

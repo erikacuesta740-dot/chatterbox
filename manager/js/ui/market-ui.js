@@ -108,6 +108,11 @@
       html += '<p class="small">Negociación en curso (' + (talk.stage === 'club' ? 'con el club' : 'con el jugador') + ').</p><button class="btn primary block" data-act="talk-open" data-id="' + p.id + '">Continuar negociación</button></section>';
       return html;
     }
+    if (mine && p.loan && p.loan.parent !== s.clubId) {
+      html += '<p class="small">Cedido por <b>' + esc(s.clubs[p.loan.parent].name) + '</b> hasta junio de ' + p.loan.until + '. Pagas el ' + (p.loan.wageShare || 0) + '% de su salario.</p>' +
+        (p.loan.option ? '<p class="small">Opción de compra: <b>' + U.money(p.loan.option) + '</b>. Al ejecutarla pasa a cobrar el 100% de su salario.</p><button class="btn primary block" data-act="option-ask" data-id="' + p.id + '">Ejecutar opción de compra</button>' : '<p class="small muted">Cesión sin opción de compra.</p>') + '</section>';
+      return html;
+    }
     if (mine) {
       const yl = T.yearsLeft(s, p);
       html += '<p class="small">' + refLine(s, p) + '</p><p class="small muted">Contrato hasta junio de ' + p.contractEnd + (yl === 0 ? ' — <b style="color:var(--warn)">vence esta temporada</b>' : '') + '. ' + esc(T.ROLE_LABEL[T.role(s, p)]) + '.</p>' +
@@ -149,15 +154,17 @@
       '<p class="small muted">El presupuesto es único: paga el traspaso, la prima y un año del salario que añadas.</p>';
     if (t.rounds.length) {
       html += '<div class="stack small">' + t.rounds.map((r) => '<div class="row" style="align-items:flex-start"><b style="width:64px;flex:none">' + esc(r.by === 'tú' ? 'Tú' : r.by === 'club' ? 'Club' : 'Jugador') + '</b><span class="grow">' +
-        [r.fee != null && t.kind !== 'loan' ? 'Traspaso ' + U.money(r.fee) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
+        [r.fee != null && t.kind !== 'loan' ? 'Traspaso ' + U.money(r.fee) : '', r.loanYears ? r.loanYears + (r.loanYears > 1 ? ' temporadas' : ' temporada') : '', r.option ? 'opción ' + U.money(r.option) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
     }
     if (t.stage === 'failed') {
       html += '<p class="notice">Negociación terminada sin acuerdo.</p><button class="btn block" data-act="talk-close" data-id="' + pid + '">Cerrar</button>';
     } else if (t.stage === 'club') {
       if (t.kind === 'loan') {
         html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
-          '<p class="small">Cesión hasta final de temporada, sin compensación. ' + esc(club.name) + ' decide según la parte del salario que pagues. Paciencia del club: ' + t.patience + '.</p>' +
+          '<p class="small">Cesión sin compensación. ' + esc(club.name) + ' decide según la parte del salario que pagues. Si añades opción de compra, debe ser de al menos ' + U.money(T.optionMin(s, p)) + '. Paciencia del club: ' + t.patience + '.</p>' +
           '<label class="field" for="tk-share">Porcentaje del salario que pagas<select class="input" id="tk-share" name="share">' + [0, 25, 50, 75, 100].map((x) => '<option value="' + x + '"' + (x === t.wageShare ? ' selected' : '') + '>' + x + '% (' + U.wage(Math.round(p.wage * x / 100)) + ')</option>').join('') + '</select></label>' +
+          '<div class="grid-2"><label class="field" for="tk-years">Duración<select class="input" id="tk-years" name="loanYears"><option value="1"' + (t.years !== 2 ? ' selected' : '') + '>1 temporada</option><option value="2"' + (t.years === 2 ? ' selected' : '') + '>2 temporadas</option></select></label>' +
+          '<label class="field" for="tk-option">Opción de compra (€, 0 = sin opción)<input class="input" id="tk-option" name="option" type="number" inputmode="numeric" min="0" step="1" value="' + (t.option || 0) + '"></label></div>' +
           '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
       } else {
         html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
@@ -168,7 +175,7 @@
     } else {
       const d = t.demand;
       html += '<form class="stack" data-submit="talk-player" data-id="' + pid + '">' +
-        '<p class="small">' + (t.kind === 'loan' ? 'Acuerdo con ' + esc(club.name) + ' cerrado. Confirma la cesión: el jugador cobrará lo acordado y tú pagas el ' + t.wageShare + '% (' + U.wage(Math.round(p.wage * t.wageShare / 100)) + ').'
+        '<p class="small">' + (t.kind === 'loan' ? 'Acuerdo con ' + esc(club.name) + ' cerrado: cesión de ' + (t.years === 2 ? '2 temporadas' : '1 temporada') + (t.option ? ' con opción de compra de ' + U.money(t.option) : '') + '. Tú pagas el ' + t.wageShare + '% del salario (' + U.wage(Math.round(p.wage * t.wageShare / 100)) + ').'
           : 'Petición del jugador: <b>' + U.wage(d.wage) + '</b>, ' + d.years + (d.years > 1 ? ' años' : ' año') + ', prima de ' + U.money(d.bonus) + '. Paciencia: ' + t.patience + '.') + '</p>' +
         (t.kind === 'loan' ? '' :
           '<label class="field" for="tk-wage">Salario (€/semana)<input class="input" id="tk-wage" name="wage" type="number" inputmode="numeric" min="0" step="1" value="' + d.wage + '"></label>' +
@@ -192,7 +199,7 @@
   A['talk-close'] = async (d) => { T.cancel(App.s, d.id); await H.persist(); H.closeSheet(); App.render(); };
   F['talk-club'] = async (fd, form) => {
     const pid = form.dataset.id;
-    const r = T.offerClub(App.s, pid, Number(fd.get('fee') || 0), Number(fd.get('share') || 0));
+    const r = T.offerClub(App.s, pid, Number(fd.get('fee') || 0), Number(fd.get('share') || 0), { years: Number(fd.get('loanYears') || 1), option: Number(fd.get('option') || 0) });
     if (r.error) { H.toast(r.error); return; }
     await H.persist();
     App.render();
@@ -209,6 +216,11 @@
   };
   A.shortlist = async (d) => { T.toggleShortlist(App.s, d.id); await H.persist(); App.render(); };
   A['toggle-listed'] = async (d) => { T.toggleListed(App.s, d.id); await H.persist(); App.render(); };
+  A['option-ask'] = (d) => {
+    const p = App.s.players[d.id];
+    H.confirmSheet({ title: 'Comprar a ' + p.name, body: 'Pagarás ' + U.money(p.loan.option) + ' a ' + App.s.clubs[p.loan.parent].name + ' y pasará a ser jugador de tu club con todo su salario.', yes: 'Ejecutar opción',
+      onYes: async () => { const r = T.exerciseOption(App.s, d.id); if (r.error) { H.toast(r.error); return; } await H.persist(); H.toast('¡' + p.name + ' es tuyo!'); App.render(); } });
+  };
   A['loan-out-ask'] = (d) => {
     const p = App.s.players[d.id];
     H.confirmSheet({ title: 'Ceder a ' + p.name, body: 'Se buscará un club que le dé minutos hasta final de temporada. Su salario lo paga el club de destino y vuelve en junio.', yes: 'Buscar cesión',
