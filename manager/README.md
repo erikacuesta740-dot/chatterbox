@@ -62,12 +62,12 @@ los partidos se simulan.
 **Instalación (Etapa 5)**
 - PWA instalable con icono y funcionamiento sin conexión cuando se aloja en su propia web (por ejemplo, GitHub Pages).
 
-## Carrera online contra un amigo
+## Carrera online con amigos (hasta 22)
 
 En la pantalla de inicio, «Jugar online con un amigo»:
 1. Uno crea la sala y elige la liga (el mundo incluye las demás ligas de ese país, copas y Europa) y su club.
-2. El otro escribe el código de la sala y elige otro club de esa liga.
-3. Cada uno dirige su once, táctica y lanzadores desde su móvil. Al pulsar los dos «Listo», se juega hasta el
+2. Los demás (hasta 22, o tantos como clubes tenga la liga) escriben el código y eligen cada uno un club distinto.
+3. Cada uno dirige su once, táctica y lanzadores desde su móvil. Cuando todos pulsan «Listo», se juega hasta el
    siguiente partido de cualquiera de los dos. Hay cara a cara, clasificación y cambio de temporada.
 
 - **Dentro de claude.ai**: las salas viven en la base de datos del juego (el amigo debe estar invitado por correo como

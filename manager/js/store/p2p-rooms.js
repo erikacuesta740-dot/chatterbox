@@ -12,11 +12,12 @@
   'use strict';
   const P = (MCM.p2p = { inited: false });
   const PREFIX = 'mcm-carrera-';
-  const PART = 12 * 1024; // PeerJS (json) rechaza mensajes de más de ~16 KB
+  const PART = 11 * 1024; // PeerJS (json) rechaza mensajes de más de ~16 KB
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const rooms = {};
   P._rooms = rooms; // para pruebas
   let me = { uid: null, name: 'Jugador' };
+  const RU = MCM.roomUtil;
 
   const store = () => MCM.store;
   const peerOpts = () => (typeof window !== 'undefined' && window.MCM_PEER_OPTS) || {
@@ -59,10 +60,28 @@
 
   // ---------- red ----------
   // Cola por conexión: no se manda el siguiente mensaje hasta que el canal se ha vaciado (si no, se pierden).
+  let partSeq = 0;
   function send(conn, msg) {
     if (!conn) return;
-    (conn._q = conn._q || []).push(msg);
+    conn._q = conn._q || [];
+    const txt = JSON.stringify(msg);
+    if (txt.length > 12000) {
+      // Mensaje grande: se trocea y el otro lo recompone (PeerJS rechaza los de más de ~16 KB).
+      const id = ++partSeq;
+      const n = Math.ceil(txt.length / 12000);
+      for (let i = 0; i < n; i++) conn._q.push({ t: 'part', id, i, n, d: txt.slice(i * 12000, (i + 1) * 12000) });
+    } else conn._q.push(msg);
     pump(conn);
+  }
+  /* Recompone los mensajes troceados antes de pasarlos al manejador. */
+  function receiver(conn, handle) {
+    const parts = {};
+    return (msg) => {
+      if (!msg || msg.t !== 'part') { handle(msg); return; }
+      const p = (parts[msg.id] = parts[msg.id] || { n: msg.n, got: 0, d: [] });
+      if (p.d[msg.i] == null) { p.d[msg.i] = msg.d; p.got++; }
+      if (p.got === p.n) { delete parts[msg.id]; handle(JSON.parse(p.d.join(''))); }
+    };
   }
   function pump(conn) {
     if (conn._pumping) return;
@@ -82,6 +101,11 @@
     const n = Math.max(1, Math.ceil(d.length / PART));
     for (let i = 0; i < n; i++) send(conn, { t: 'state', rev: r.packed.rev, enc: r.packed.enc, i, n, part: d.slice(i * PART, (i + 1) * PART) });
   }
+  function presence(r) {
+    if (r.role !== 'host') return;
+    r.online = [me.uid].concat(r.conns.map((c) => c.uid).filter(Boolean));
+    r.conns.forEach((c) => send(c, { t: 'presence', uids: r.online }));
+  }
   function broadcast(r, withState) {
     r.conns.forEach((c) => { if (withState) sendState(c, r); send(c, { t: 'meta', meta: r.meta }); });
   }
@@ -94,6 +118,7 @@
   function hostHandle(r, conn, msg) {
     if (msg.t === 'hello') {
       conn.uid = msg.uid;
+      presence(r);
       const mine = r.meta ? r.meta.rev : 0;
       if (msg.rev > mine) { send(conn, { t: 'sendState' }); return; }
       if (r.meta) { if (msg.rev < mine) sendState(conn, r); send(conn, { t: 'meta', meta: r.meta }); }
@@ -121,14 +146,12 @@
   async function hostJoin(r, msg) {
     const m = r.meta;
     if (!m) return 'La sala no está lista.';
-    if (m.host.uid === msg.uid) return 'Esta sala la creaste tú.';
-    if (m.guest && m.guest.uid !== msg.uid) return 'La sala ya está completa.';
-    if (m.status !== 'lobby' && !(m.guest && m.guest.uid === msg.uid)) return 'La partida ya ha empezado.';
-    if (msg.clubId === m.host.clubId) return 'Ese club ya lo ha elegido ' + m.host.name + '.';
+    if (RU.me(m, msg.uid)) return null;
     const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    if (!s.clubs[msg.clubId] || s.clubs[msg.clubId].leagueId !== m.leagueId) return 'Elige un club de ' + m.leagueName + '.';
-    m.guest = { uid: msg.uid, name: msg.name || 'Jugador', clubId: msg.clubId, club: s.clubs[msg.clubId].name };
-    m.guestUid = msg.uid;
+    const err = RU.joinError(m, msg.uid, msg.clubId, s);
+    if (err) return err;
+    m.players = RU.players(m).concat([{ uid: msg.uid, name: msg.name || 'Jugador', clubId: msg.clubId, club: s.clubs[msg.clubId].name }]);
+    m.uids = m.players.map((p) => p.uid);
     m.updatedAt = new Date().toISOString();
     await saveLocal(r);
     broadcast(r, false);
@@ -146,6 +169,9 @@
       notify(r);
     } else if (msg.t === 'sendState') {
       if (r.packed && r.meta) { sendState(r.conn, r); send(r.conn, { t: 'adopt', meta: r.meta }); }
+    } else if (msg.t === 'presence') {
+      r.online = msg.uids || [];
+      notify(r);
     } else if (msg.t === 'joinResult') {
       const w = r.joinWaiter; r.joinWaiter = null;
       if (w) w(msg);
@@ -171,7 +197,7 @@
         const conn = peer.connect(PREFIX + code, { reliable: true, serialization: 'json' });
         r.conn = conn;
         conn.on('open', () => { r.connected = true; send(conn, { t: 'hello', uid: me.uid, rev: r.meta && r.packed && r.packed.rev === r.meta.rev ? r.meta.rev : 0 }); notify(r); });
-        conn.on('data', (msg) => guestHandle(r, msg));
+        conn.on('data', receiver(conn, (msg) => guestHandle(r, msg)));
         conn.on('close', () => { r.connected = false; notify(r); if (r.listeners.length) { close(r); r.retry = setTimeout(() => P.connect(code), 4000); } });
       });
       peer.on('error', (e) => {
@@ -191,8 +217,8 @@
       peer.on('open', () => notify(r));
       peer.on('connection', (conn) => {
         conn.on('open', () => { r.conns.push(conn); r.connected = true; notify(r); });
-        conn.on('data', (msg) => hostHandle(r, conn, msg));
-        conn.on('close', () => { r.conns = r.conns.filter((c) => c !== conn); r.connected = r.conns.length > 0; notify(r); });
+        conn.on('data', receiver(conn, (msg) => hostHandle(r, conn, msg)));
+        conn.on('close', () => { r.conns = r.conns.filter((c) => c !== conn); r.connected = r.conns.length > 0; presence(r); notify(r); });
       });
       peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) { /* nada */ } });
       peer.on('error', (e) => {
@@ -207,8 +233,9 @@
 
   P.status = function (code) {
     const r = rooms[code];
-    if (!r) return { role: null, connected: false };
-    return { role: r.role, connected: !!r.connected };
+    if (!r) return { role: null, connected: false, online: [] };
+    const online = r.role === 'host' ? [me.uid].concat(r.conns.map((c) => c.uid).filter(Boolean)) : r.connected ? (r.online || []) : [me.uid];
+    return { role: r.role, connected: !!r.connected, online };
   };
 
   // ---------- interfaz común con MCM.rooms ----------
@@ -236,9 +263,10 @@
     const r = await room(code);
     const packed = await packWorld(s);
     r.packed = { rev: 1, enc: packed.enc, data: packed.data };
+    const host = { uid: me.uid, name: me.name, clubId, club: s.clubs[clubId].name };
     r.meta = {
       code, rev: 1, status: 'lobby', leagueId, leagueName: L.name, country: L.country, p2p: true,
-      host: { uid: me.uid, name: me.name, clubId, club: s.clubs[clubId].name }, guest: null, hostUid: me.uid, guestUid: '',
+      host, players: [host], uids: [me.uid], maxPlayers: Math.min(RU.MAX, L.clubIds.length), hostUid: me.uid,
       ready: {}, last: null, season: s.season.label, date: s.date, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
     await saveLocal(r);
@@ -272,7 +300,7 @@
     const r = await room(meta.code);
     if (!r.packed || r.packed.rev !== meta.rev) throw new Error('Esperando la partida…');
     const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    const mine = meta.host.uid === me.uid ? meta.host : meta.guest && meta.guest.uid === me.uid ? meta.guest : null;
+    const mine = RU.me(meta, me.uid);
     if (mine) s.clubId = mine.clubId;
     s.online = Object.assign({}, s.online || {}, { code: meta.code, rev: meta.rev, p2p: true });
     s.id = 'online-' + meta.code;
@@ -291,10 +319,11 @@
 
   P.start = async function (meta) {
     const r = await room(meta.code);
-    if (meta.host.uid !== me.uid || !r.meta.guest) throw new Error('Falta tu amigo.');
+    if (meta.host.uid !== me.uid) throw new Error('Solo quien creó la sala puede empezar.');
+    if (RU.players(r.meta).length < 2) throw new Error('Falta al menos un amigo.');
     if (r.role !== 'host') throw new Error('Abre la sala desde este móvil para empezar.');
     const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    MCM.online.addHuman(s, r.meta.guest.clubId);
+    RU.players(r.meta).forEach((p) => MCM.online.addHuman(s, p.clubId));
     await commit(r, s, { status: 'playing' });
   };
 
@@ -306,7 +335,7 @@
 
   P.ready = async function (meta, orders) {
     const r = await room(meta.code);
-    if (!r.connected) throw new Error('Tu amigo no está conectado. Tenéis que tener la sala abierta los dos.');
+    if (r.role !== 'host' && !r.connected) throw new Error('No hay conexión con la sala. Quien la sirve tiene que tenerla abierta.');
     if (r.role === 'host') {
       r.orders[me.uid] = orders;
       r.meta.ready = Object.assign({}, r.meta.ready, { [me.uid]: r.meta.rev });
@@ -324,7 +353,7 @@
     else send(r.conn, { t: 'unready', uid: me.uid });
   };
 
-  P.bothReady = (meta) => !!(meta && meta.guest && meta.status === 'playing' && meta.ready && meta.ready[meta.host.uid] === meta.rev && meta.ready[meta.guest.uid] === meta.rev);
+  P.bothReady = RU.allReady;
 
   let stepping = false;
   P.tryStep = async function (code) {
@@ -333,10 +362,10 @@
     stepping = true;
     try {
       const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-      [r.meta.host, r.meta.guest].forEach((u) => { if (r.orders[u.uid]) MCM.online.applyOrders(s, r.orders[u.uid]); });
-      s.clubId = r.meta.host.uid === me.uid ? r.meta.host.clubId : r.meta.guest.clubId;
+      RU.players(r.meta).forEach((u) => { if (r.orders[u.uid]) MCM.online.applyOrders(s, r.orders[u.uid]); });
+      s.clubId = (RU.me(r.meta, me.uid) || r.meta.host).clubId;
       const res = MCM.online.step(s);
-      await commit(r, s, { last: { kind: res.kind, label: res.label || null, date: res.date || null, results: (res.results || []).slice(0, 12), rev: r.meta.rev + 1 } });
+      await commit(r, s, { last: { kind: res.kind, label: res.label || null, date: res.date || null, results: RU.lastResults(res), rev: r.meta.rev + 1 } });
       return { stepped: true, result: res };
     } finally { stepping = false; }
   };

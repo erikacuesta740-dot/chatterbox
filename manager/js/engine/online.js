@@ -1,5 +1,5 @@
 /*
- * Carrera online contra un amigo: un mundo compartido con dos clubes dirigidos por personas.
+ * Carrera online con amigos: un mundo compartido con varios clubes (hasta 22) dirigidos por personas.
  * El creador de la sala elige la liga; el mundo incluye las ligas de ese país (más copas y Europa).
  * Cada jugador manda sus «órdenes» (táctica, once, lanzadores) y, cuando los dos están listos,
  * se juega hasta el siguiente partido de cualquiera de los dos. Sin fichajes ni cantera en este modo.
@@ -77,10 +77,10 @@
     return { kind: 'matchday', date: s.date, results, finished: C().seasonFinished(s) };
   };
 
-  /* Cara a cara entre los dos humanos esta temporada. */
-  O.headToHead = function (s) {
+  /* Partidos entre clubes de jugadores esta temporada (si se indica un club, solo los suyos). */
+  O.headToHead = function (s, clubId) {
     if (s.humans.length < 2) return [];
-    const [a, b] = s.humans;
-    return C().fixtures(s).filter((f) => (f.home === a && f.away === b) || (f.home === b && f.away === a));
+    return C().fixtures(s).filter((f) => s.humans.includes(f.home) && s.humans.includes(f.away) && (!clubId || f.home === clubId || f.away === clubId))
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
   };
 })(globalThis.MCM = globalThis.MCM || {});

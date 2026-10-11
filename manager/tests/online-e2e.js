@@ -25,7 +25,7 @@ async function dbOp(uid, op, path, body) {
   if (op === 'query') {
     const depth = path.split('/').length + 1;
     return Object.keys(server).filter((k) => k.startsWith(path + '/') && k.split('/').length === depth)
-      .filter((k) => (body || []).every(([f, v]) => server[k][f] === v)).map((k) => ({ id: k.split('/').pop(), data: server[k] }));
+      .filter((k) => (body || []).every(([f, op, v]) => (op === 'array-contains' ? Array.isArray(server[k][f]) && server[k][f].includes(v) : server[k][f] === v))).map((k) => ({ id: k.split('/').pop(), data: server[k] }));
   }
   return { error: 'bad op' };
 }
@@ -48,7 +48,7 @@ const MOCK = ({ uid, name }) => {
     collection: (p) => query(path + '/' + p, []),
   });
   const query = (cpath, filters) => ({
-    where: (f, op, v) => query(cpath, filters.concat([[f, v]])),
+    where: (f, op, v) => query(cpath, filters.concat([[f, op, v]])),
     async get() { const docs = (await call('query', cpath, filters)).map((d) => snap(d.id, d.data)); return { docs, size: docs.length, empty: !docs.length }; },
     doc: (id) => docRef(cpath + '/' + id),
   });
@@ -92,11 +92,22 @@ const MOCK = ({ uid, name }) => {
     await b.click('[data-act="on-join"][data-club="cordoba-cf"]');
     await b.waitForSelector('text=Esperando a que Erika');
 
+    step('una tercera jugadora entra con el Real Zaragoza');
+    const c = await mk('user-amiga', 'Amiga');
+    await c.click('[data-view="online"]');
+    await c.fill('#on-code', code);
+    await c.click('form[data-submit="on-code"] button[type=submit]');
+    await c.waitForSelector('[data-act="on-join"][data-club="real-zaragoza"]');
+    if (await c.$('[data-act="on-join"][data-club="cordoba-cf"]')) throw new Error('Un club ya elegido no debería poder elegirse');
+    await c.click('[data-act="on-join"][data-club="real-zaragoza"]');
+    await c.waitForSelector('text=Esperando a que Erika');
+
     step('Erika empieza la temporada');
     await a.waitForSelector('[data-act="on-start"]');
     await a.click('[data-act="on-start"]');
     await a.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
     await b.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
+    await c.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
 
     step('el amigo cambia a 4-4-2 desde su móvil');
     await b.evaluate(() => MCM.app.go('tactics', {}));
@@ -111,8 +122,13 @@ const MOCK = ({ uid, name }) => {
       await a.waitForSelector('[data-act="on-unready"]');
       await b.waitForSelector('[data-act="on-ready"]');
       await b.click('[data-act="on-ready"]');
+      await b.waitForSelector('[data-act="on-unready"]');
+      if ((await a.evaluate(() => MCM.app.ui.online.room.rev)) !== rev0) throw new Error('No debe jugarse sin la tercera jugadora');
+      await c.waitForSelector('[data-act="on-ready"]');
+      await c.click('[data-act="on-ready"]');
       await a.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
       await b.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
+      await c.waitForFunction((r) => MCM.app.ui.online.room.rev > r && MCM.app.s && MCM.app.s.online.rev === MCM.app.ui.online.room.rev, rev0, { timeout: 30000 });
       const info = await a.evaluate(() => { const s = MCM.app.s; const res = MCM.app.ui.online.room.last.results; return { date: s.date, n: res.length, txt: res.map((r) => s.clubs[r.home].short + ' ' + r.hg + '-' + r.ag + ' ' + s.clubs[r.away].short).join(', ') }; });
       console.log('  ', info.date, info.txt);
       if (!info.n) throw new Error('La jornada no tiene resultados de los jugadores');
@@ -123,6 +139,8 @@ const MOCK = ({ uid, name }) => {
     const sb = await b.evaluate(() => ({ club: MCM.app.s.clubId, date: MCM.app.s.date, played: MCM.career.fixtures(MCM.app.s).filter((f) => f.played).length }));
     console.log('  ', JSON.stringify(sa), JSON.stringify(sb));
     if (sa.club !== 'albacete-balompie' || sb.club !== 'cordoba-cf') throw new Error('Clubes cambiados');
+    const sc = await c.evaluate(() => ({ club: MCM.app.s.clubId, humans: MCM.app.s.humans.length }));
+    if (sc.club !== 'real-zaragoza' || sc.humans !== 3) throw new Error('La tercera jugadora no está en la partida: ' + JSON.stringify(sc));
     if (sa.date !== sb.date || sa.played !== sb.played) throw new Error('Mundos distintos');
     if (sa.f !== '4-4-2') throw new Error('No se aplicó la táctica del amigo');
 
