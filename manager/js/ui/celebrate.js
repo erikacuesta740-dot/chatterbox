@@ -51,7 +51,7 @@
     el.className = 'celebrate';
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', 'Has ganado ' + name);
-    const src = img || 'celebration.jpg';
+    const src = img || globalThis.MCM_CELEBRATION || 'celebration.jpg';
     el.innerHTML = '<div class="celebrate-confetti" aria-hidden="true">' + Array.from({ length: 28 }, (_, i) => '<i style="left:' + ((i * 37) % 100) + '%;animation-delay:' + ((i % 7) * 0.18).toFixed(2) + 's;background:' + ['#f5c542', '#ffffff', '#3fb950', '#58a6ff', '#ff7b72'][i % 5] + '"></i>').join('') + '</div>' +
       '<div class="celebrate-box"><img class="celebrate-img" alt="" src="' + esc(src) + '">' +
       '<div class="celebrate-trophy" aria-hidden="true">🏆</div>' +
@@ -84,7 +84,7 @@
   function card() {
     return '<section class="card stack"><h3>Celebración de títulos</h3>' +
       '<p class="small">Al ganar un título aparece unos segundos «HAS GANADO …» con esta imagen. Se guarda solo en este dispositivo.</p>' +
-      '<div class="row" style="gap:12px">' + (img ? '<img src="' + esc(img) + '" alt="Imagen de celebración" style="width:64px;height:64px;object-fit:cover;border-radius:12px">' : '<span class="small muted">' + 'Sin imagen elegida (en la app de Android ya viene una).' + '</span>') + '</div>' +
+      '<div class="row" style="gap:12px">' + (img || globalThis.MCM_CELEBRATION ? '<img src="' + esc(img || globalThis.MCM_CELEBRATION) + '" alt="Imagen de celebración" style="width:64px;height:64px;object-fit:cover;border-radius:12px">' + (img ? '' : '<span class="small muted">Imagen incluida en la app.</span>') : '<span class="small muted">Sin imagen elegida.</span>') + '</div>' +
       '<label class="btn sm" for="cel-file" style="justify-self:start">Elegir imagen<input id="cel-file" type="file" accept="image/*" data-change="cel-file" style="display:none"></label>' +
       '<div class="btn-row">' + (img ? '<button class="btn sm ghost" data-act="cel-clear">Quitar imagen</button>' : '') + '<button class="btn sm" data-act="cel-test">Probar</button></div></section>';
   }

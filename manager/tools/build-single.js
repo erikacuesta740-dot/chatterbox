@@ -11,6 +11,9 @@ const out = process.argv[2] || path.join(root, 'dist', 'modo-carrera-manager.htm
 const fragment = process.argv.includes('--fragment');
 const ci = process.argv.indexOf('--cover');
 const cover = ci > 0 ? 'data:image/jpeg;base64,' + fs.readFileSync(process.argv[ci + 1]).toString('base64') : null;
+// --celebration <imagen.jpg>: imagen de «HAS GANADO» incrustada (solo para la APK; no se guarda en el repositorio).
+const ce = process.argv.indexOf('--celebration');
+const celebration = ce > 0 ? 'data:image/jpeg;base64,' + fs.readFileSync(process.argv[ce + 1]).toString('base64') : null;
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const scripts = [...index.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
 const js = scripts.map((s) => '/* ' + s + ' */\n' + fs.readFileSync(path.join(root, s), 'utf8')).join('\n');
@@ -18,6 +21,7 @@ const css = fs.readFileSync(path.join(root, 'css/app.css'), 'utf8');
 const fonts = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">';
 const bodyHtml = '<div id="app"><main class="no-tabs"><p>Cargando…</p></main></div>\n<div id="sheet" class="scrim" hidden></div>\n<div id="busy" class="busy" hidden></div>\n<div id="toast" class="toast" hidden></div>\n' +
   (cover ? '<script>window.MCM_COVER = ' + JSON.stringify(cover) + ';</script>\n' : '') +
+  (celebration ? '<script>window.MCM_CELEBRATION = ' + JSON.stringify(celebration) + ';</script>\n' : '') +
   '<script>\n' + js.replace(/<\/script/gi, '<\\/script') + '\nMCM.app.start();\n</script>';
 let html;
 if (fragment) {

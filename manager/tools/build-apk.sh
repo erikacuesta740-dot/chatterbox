@@ -8,7 +8,7 @@ OUT="${OUT:-$ROOT/dist/android}"
 W="$OUT/work"
 rm -rf "$W" && mkdir -p "$W/res" "$W/assets/www" "$W/classes"
 # 1) Juego en un solo HTML (con portada si se indica)
-node "$ROOT/tools/build-single.js" "$W/assets/www/index.html" ${COVER:+--cover "$COVER"}
+node "$ROOT/tools/build-single.js" "$W/assets/www/index.html" ${COVER:+--cover "$COVER"} ${CELEBRATION:+--celebration "$CELEBRATION"}
 # Imagen de celebración de títulos (solo en la APK, nunca en la web pública).
 if [ -n "${CELEBRATION:-}" ] && [ -f "$CELEBRATION" ]; then cp "$CELEBRATION" "$W/assets/www/celebration.jpg"; fi
 # 2) Recursos: estilos + iconos
