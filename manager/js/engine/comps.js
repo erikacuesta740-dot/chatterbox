@@ -441,10 +441,171 @@
     koRound(s, comp, names[next], next, pairs, next === 'final');
   }
 
+  // ---------- Playoffs de ascenso ----------
+  /*
+   * Formatos (L.playoff):
+   *  esp: 3º-6º. Semifinales y final a ida y vuelta; con empate en el global, prórroga y, si sigue, pasa el mejor clasificado.
+   *  eng: 3º-6º (o L.playoffFrom-…). Semifinales a ida y vuelta (prórroga y penaltis) y final a partido único en campo neutral.
+   *  ita: 3º-8º. Ronda previa a partido único en casa del mejor (5º-8º, 6º-7º), semifinales y final a ida y vuelta; con empate, pasa el mejor clasificado.
+   *  ger: el 3º juega la promoción contra el antepenúltimo de la categoría superior (ida y vuelta, prórroga y penaltis).
+   *  fra: 4º-5º a partido único, el ganador contra el 3º y el vencedor juega la promoción contra el antepenúltimo de Ligue 1.
+   */
+  K.PLAYOFF_INFO = {
+    esp: 'Del 3º al 6º. Semifinales y final a ida y vuelta. Con empate en el global hay prórroga y, si persiste, pasa el mejor clasificado.',
+    eng: 'Semifinales a ida y vuelta y final a partido único en campo neutral, con prórroga y penaltis.',
+    ita: 'Del 3º al 8º. Ronda previa a partido único y semifinales y final a ida y vuelta. Con empate, pasa el mejor clasificado.',
+    ger: 'El 3º juega la promoción a ida y vuelta contra el antepenúltimo de la categoría superior (prórroga y penaltis).',
+    fra: '4º contra 5º, el ganador contra el 3º y el vencedor juega la promoción a ida y vuelta contra el antepenúltimo de la categoría superior.',
+  };
+
+  function leagueDone(L) { return L && L.totalMd > 0 && L.played >= L.totalMd; }
+  function lastDate(L) { return L.fixtures.reduce((m, f) => (f.date > m ? f.date : m), ''); }
+
+  /* Clubes con derecho a ascender (un filial no puede subir a la categoría de su primer equipo). */
+  function eligibleOrder(s, L) {
+    const up = L.upper ? s.leagues[L.upper] : null;
+    return MCM.schedule.table(L).map((r) => r.clubId).filter((id) => {
+      const c = s.clubs[id];
+      return !(c.reserveOf && up && up.clubIds.includes(c.reserveOf));
+    });
+  }
+  K.eligibleOrder = eligibleOrder;
+
+  function poFixture(comp, date, home, away, name, opts) {
+    const f = Object.assign({ id: fid(comp.id), comp: comp.id, date, home, away, played: false, round: name }, opts || {});
+    comp.fixtures.push(f);
+    return f;
+  }
+  /* Eliminatoria: a = mejor clasificado (o el club de la categoría superior en la promoción). */
+  function poTie(comp, name, a, b, date, legs, tb, neutral) {
+    const tie = { a, b, fixtures: [], winner: null, tb };
+    if (legs === 1) {
+      tie.fixtures.push(poFixture(comp, date, a, b, name, { knockout: true, neutral: !!neutral, noShootout: tb === 'better' }).id);
+    } else {
+      const f1 = poFixture(comp, date, b, a, name + ' (ida)', { leg: 1 });
+      const f2 = poFixture(comp, U.addDays(date, 3), a, b, name + ' (vuelta)', { leg: 2, knockout: true, firstLeg: f1.id, noShootout: tb === 'better' });
+      tie.fixtures.push(f1.id, f2.id);
+    }
+    return tie;
+  }
+  function poTieWinner(comp, tie) {
+    const fs = tie.fixtures.map((id) => comp.fixtures.find((f) => f.id === id));
+    if (!fs.every((f) => f.played)) return null;
+    const last = fs[fs.length - 1];
+    if (last.winner) return last.winner;
+    let ga = 0; let gb = 0;
+    fs.forEach((f) => { if (f.home === tie.a) { ga += f.hg; gb += f.ag; } else { ga += f.ag; gb += f.hg; } });
+    if (ga === gb) return tie.a;
+    return ga > gb ? tie.a : tie.b;
+  }
+
+  /* Pasos de cada formato: devuelve la siguiente ronda a partir de las anteriores (o null si ha terminado). */
+  function nextPlayoffRound(s, comp) {
+    const r = comp.rounds;
+    const seed = comp.seeds;
+    const W = (i) => r[i].ties.map((t) => t.winner);
+    const better = (x, y) => (seed.indexOf(x) <= seed.indexOf(y) ? [x, y] : [y, x]);
+    const fmt = comp.format;
+    if (fmt === 'esp' || fmt === 'eng') {
+      const tb = fmt === 'esp' ? 'better' : 'pens';
+      if (r.length === 0) return { name: 'Semifinales', legs: 2, tb, pairs: [[seed[0], seed[3]], [seed[1], seed[2]]] };
+      if (r.length === 1) return { name: 'Final', legs: fmt === 'esp' ? 2 : 1, tb, neutral: fmt === 'eng', pairs: [better(W(0)[0], W(0)[1])] };
+      return null;
+    }
+    if (fmt === 'ita') {
+      if (r.length === 0) return { name: 'Ronda previa', legs: 1, tb: 'better', pairs: [[seed[2], seed[5]], [seed[3], seed[4]]] };
+      if (r.length === 1) {
+        const w = W(0).slice().sort((x, y) => seed.indexOf(x) - seed.indexOf(y));
+        return { name: 'Semifinales', legs: 2, tb: 'better', pairs: [[seed[0], w[1]], [seed[1], w[0]]] };
+      }
+      if (r.length === 2) return { name: 'Final', legs: 2, tb: 'better', pairs: [better(W(1)[0], W(1)[1])] };
+      return null;
+    }
+    if (fmt === 'ger') {
+      if (r.length === 0) return { name: 'Promoción', legs: 2, tb: 'pens', pairs: [[comp.upperClub, seed[0]]], barrage: true };
+      return null;
+    }
+    if (fmt === 'fra') {
+      if (r.length === 0) return { name: 'Primera ronda', legs: 1, tb: 'pens', pairs: [[seed[1], seed[2]]] };
+      if (r.length === 1) return { name: 'Segunda ronda', legs: 1, tb: 'pens', pairs: [[seed[0], W(0)[0]]] };
+      if (r.length === 2) return { name: 'Promoción', legs: 2, tb: 'pens', pairs: [[comp.upperClub, W(1)[0]]], barrage: true };
+      return null;
+    }
+    return null;
+  }
+
+  function drawPlayoffRound(s, comp, startDate) {
+    const spec = nextPlayoffRound(s, comp);
+    if (!spec) return false;
+    const round = { name: spec.name, date: startDate, barrage: !!spec.barrage, ties: spec.pairs.map(([a, b]) => poTie(comp, spec.name, a, b, startDate, spec.legs, spec.tb, spec.neutral)) };
+    comp.rounds.push(round);
+    round.ties.forEach((t) => { [t.a, t.b].forEach((id) => { if (!comp.participants.includes(id)) comp.participants.push(id); }); });
+    const t = round.ties.find((x) => x.a === s.clubId || x.b === s.clubId);
+    if (t) C().news(s, 'cup', comp.name + ': ' + spec.name.toLowerCase(), 'Tu rival: ' + s.clubs[t.a === s.clubId ? t.b : t.a].name + ' (' + U.dateLabel(startDate) + ').');
+    return true;
+  }
+
+  function setupPlayoff(s, L) {
+    const id = 'PO_' + L.id;
+    if (s.comps[id] || !L.playoff || !leagueDone(L)) return;
+    const up = L.upper ? s.leagues[L.upper] : null;
+    const barrage = L.playoff === 'ger' || L.playoff === 'fra';
+    if (!up || (barrage && !leagueDone(up))) return;
+    const order = eligibleOrder(s, L);
+    const from = (L.playoffFrom || (L.promote || 2) + 1) - 1;
+    const size = { esp: 4, eng: 4, ita: 6, ger: 1, fra: 3 }[L.playoff];
+    const seeds = order.slice(from, from + size);
+    if (seeds.length < size) return;
+    const comp = {
+      id, type: 'playoff', format: L.playoff, name: 'Playoff de ascenso · ' + L.name, short: 'Playoff', leagueId: L.id, upperId: up.id,
+      seeds, rounds: [], fixtures: [], participants: [], winner: null, promoted: null, relegated: null, upperClub: null,
+    };
+    if (barrage) {
+      const ut = MCM.schedule.table(up).map((r) => r.clubId);
+      comp.upperClub = ut[ut.length - (up.relegate || 0) - 1];
+    }
+    s.comps[id] = comp;
+    const base = [lastDate(L), barrage ? lastDate(up) : ''].sort().pop();
+    drawPlayoffRound(s, comp, U.addDays(base, 4));
+    if (seeds.includes(s.clubId) || comp.upperClub === s.clubId) {
+      C().news(s, 'cup', 'Jugarás el ' + comp.name.toLowerCase(), K.PLAYOFF_INFO[L.playoff]);
+    }
+  }
+
+  function progressPlayoff(s, comp) {
+    if (comp.winner) return;
+    const round = comp.rounds[comp.rounds.length - 1];
+    const winners = round.ties.map((t) => (t.winner = poTieWinner(comp, t)));
+    if (winners.some((w) => !w)) return;
+    const end = comp.fixtures.reduce((m, f) => (f.date > m ? f.date : m), '');
+    if (drawPlayoffRound(s, comp, U.addDays(end, 4))) return;
+    comp.winner = winners[0];
+    const L = s.leagues[comp.leagueId];
+    const up = s.leagues[comp.upperId];
+    const w = s.clubs[comp.winner];
+    if (round.barrage) {
+      const lowerWon = comp.winner !== comp.upperClub;
+      if (lowerWon) { comp.promoted = comp.winner; comp.relegated = comp.upperClub; }
+      C().news(s, 'season', round.name + ': ' + w.name,
+        lowerWon ? w.name + ' gana la promoción y jugará en ' + up.name + '. ' + s.clubs[comp.upperClub].name + ' desciende.' : w.name + ' gana la promoción y mantiene la categoría.');
+    } else {
+      comp.promoted = comp.winner;
+      C().news(s, 'season', w.name + ' asciende', w.name + ' gana el playoff de ' + L.name + ' y jugará en ' + up.name + '.');
+    }
+  }
+
+  /* Ascensos por playoff: { up: [clubId], down: [clubId] } para la liga inferior L. */
+  K.playoffMoves = function (s, L) {
+    const comp = s.comps && s.comps['PO_' + L.id];
+    if (!comp || !comp.promoted) return { up: [], down: [] };
+    return { up: [comp.promoted], down: comp.relegated ? [comp.relegated] : [] };
+  };
+
   /* Tras cada día de partidos: avanza sorteos y fases. */
   K.progress = function (s) {
     const rng = U.rng(s.seed + ':draw:' + s.season.year + ':' + (s.date || ''));
-    K.all(s).forEach((c) => (c.type === 'cup' ? progressCup(s, c, rng) : progressEuro(s, c, rng)));
+    Object.values(s.leagues).forEach((L) => setupPlayoff(s, L));
+    K.all(s).forEach((c) => (c.type === 'cup' ? progressCup(s, c, rng) : c.type === 'playoff' ? progressPlayoff(s, c) : progressEuro(s, c, rng)));
   };
 
   /* Monta todas las competiciones de una temporada. tables/cupWinners: de la temporada anterior (o estimados). */

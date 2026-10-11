@@ -7,6 +7,9 @@ const FILES = [
   'js/engine/career.js',
 ];
 const fs = require('fs');
+// Ligas añadidas (js/data/world/*.js), justo después de las plantillas.
+const WORLD = fs.existsSync(path.join(__dirname, '..', 'js/data/world')) ? fs.readdirSync(path.join(__dirname, '..', 'js/data/world')).filter((f) => f.endsWith('.js')).sort().map((f) => 'js/data/world/' + f) : [];
+FILES.splice(FILES.indexOf('js/engine/players.js'), 0, ...WORLD);
 FILES.forEach((f) => { const p = path.join(__dirname, '..', f); if (f.includes('/rosters/') && !fs.existsSync(p)) return; require(p); });
 module.exports = globalThis.MCM;
 module.exports.FILES = FILES;

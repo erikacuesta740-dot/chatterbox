@@ -177,11 +177,12 @@
   V.table = function () {
     const s = App.s;
     const userL = C.userClub(s).leagueId;
-    const ids = [userL].concat(Object.keys(s.leagues).filter((x) => x !== userL)).concat(K.all(s).filter((c) => c.type === 'euro').map((c) => c.id)).concat(K.all(s).filter((c) => c.type === 'cup').map((c) => c.id));
+    const ids = [userL].concat(Object.keys(s.leagues).filter((x) => x !== userL)).concat(K.all(s).filter((c) => c.type === 'euro').map((c) => c.id)).concat(K.all(s).filter((c) => c.type === 'cup').map((c) => c.id)).concat(K.all(s).filter((c) => c.type === 'playoff').map((c) => c.id));
     const sel = App.ui.comp.id && (s.leagues[App.ui.comp.id] || s.comps[App.ui.comp.id]) ? App.ui.comp.id : userL;
     let html = '<div class="chips">' + ids.map((id) => '<button class="chip ' + (id === sel ? 'on' : '') + '" data-act="comp-sel" data-v="' + esc(id) + '">' + esc(K.compName(s, id)) + '</button>').join('') + '</div>';
     if (s.leagues[sel]) html += leagueBlock(s, s.leagues[sel]);
     else if (s.comps[sel].type === 'cup') html += cupBlock(s, s.comps[sel]);
+    else if (s.comps[sel].type === 'playoff') html += playoffBlock(s, s.comps[sel]);
     else html += euroBlock(s, s.comps[sel]);
     return { title: 'Competiciones', sub: K.compName(s, sel) + ' · ' + s.season.label, html };
   };
@@ -204,7 +205,7 @@
         '<p class="small muted">' + esc(U.dateLabel(fx[0].date)) + '</p><div class="stack">' + fx.map((f) => pairRow(s, f)).join('') + '</div></section>';
     }
     return html + '<section class="card"><div class="section-head"><h3>' + esc(L.name) + '</h3><span class="small muted">Jornada ' + L.played + '/' + L.totalMd + '</span></div>' + H.tableHtml(L, SC.table(L), false) +
-      '<div class="legend">' + (L.tier === 1 ? '<span><i class="zone ucl"></i>Champions</span><span><i class="zone euro"></i>Europa / Conference</span>' + (L.relegate ? '<span><i class="zone rel"></i>Descenso</span>' : '') : '<span><i class="zone pro"></i>Ascenso directo</span>') + '</div>' +
+      legendHtml(s, L) +
       (!L.relegate && L.tier === 1 ? '<p class="small muted">En esta base de datos la liga no tiene segunda división cargada, así que no hay descensos.</p>' : '') + '</section>';
   }
   App.ACTIONS['cal-md'] = (d) => { App.ui.calMd = Number(d.v); App.render(); };
@@ -218,6 +219,30 @@
       '<b class="num" style="min-width:52px;text-align:center">' + (f.played ? f.hg + '-' + f.ag : esc(U.dateLabel(f.date).split(',')[1] || '–')) + '</b>' + UI.crest(a, 20) +
       '<span class="grow ellipsis" style="' + win(f.away) + '">' + esc(a.name) + '</span></button>' +
       (f.played && (f.pens || f.et) ? '<div class="small muted" style="text-align:center;margin-top:-6px">' + (f.pens ? 'Penaltis ' + f.pens[0] + '-' + f.pens[1] : 'Tras prórroga') + '</div>' : '');
+  }
+
+  function legendHtml(s, L) {
+    const lo = L.lower ? s.leagues[L.lower] : null;
+    let h = '';
+    if (L.tier === 1 && L.uefa !== false) h += '<span><i class="zone ucl"></i>Champions</span><span><i class="zone euro"></i>Europa / Conference</span>';
+    if (L.upper && L.promote) h += '<span><i class="zone pro"></i>Ascenso directo</span>';
+    if (L.upper && L.playoff) h += '<span><i class="zone po"></i>' + (L.playoff === 'ger' ? 'Promoción de ascenso' : 'Playoff de ascenso') + '</span>';
+    if (lo && (lo.playoff === 'ger' || lo.playoff === 'fra')) h += '<span><i class="zone relpo"></i>Promoción de permanencia</span>';
+    if (L.relegate) h += '<span><i class="zone rel"></i>Descenso</span>';
+    return '<div class="legend">' + h + '</div>' + (L.upper && L.playoff ? '<p class="small muted">' + esc(K.PLAYOFF_INFO[L.playoff]) + '</p>' : '');
+  }
+
+  function playoffBlock(s, comp) {
+    let html = '<section class="card"><div class="section-head"><h3>' + esc(comp.name) + '</h3>' + (comp.winner ? '<span class="pill good">' + esc(s.clubs[comp.winner].name) + '</span>' : '') + '</div>' +
+      '<p class="small muted">' + esc(K.PLAYOFF_INFO[comp.format] || '') + '</p>' +
+      '<p class="small">Participan: ' + comp.seeds.map((id) => esc(s.clubs[id].name)).join(', ') + (comp.upperClub ? ' y ' + esc(s.clubs[comp.upperClub].name) + ' (categoría superior)' : '') + '.</p></section>';
+    comp.rounds.slice().reverse().forEach((r) => {
+      html += '<section class="card"><div class="section-head"><h3>' + esc(r.name) + '</h3><span class="small muted">' + esc(U.dateLabel(r.date)) + '</span></div><div class="stack">' + r.ties.map((t) => {
+        const fs = t.fixtures.map((id) => comp.fixtures.find((f) => f.id === id));
+        return '<div class="stack" style="gap:4px;padding-bottom:6px;border-bottom:1px solid var(--line)">' + fs.map((f) => pairRow(s, f)).join('') + (t.winner ? '<p class="small muted">Pasa: <b>' + esc(s.clubs[t.winner].name) + '</b></p>' : '') + '</div>';
+      }).join('') + '</div></section>';
+    });
+    return html;
   }
 
   function cupBlock(s, cup) {

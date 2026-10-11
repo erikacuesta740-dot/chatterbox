@@ -244,7 +244,7 @@
       (compact ? '' : '<th>G</th><th>E</th><th>P</th><th>GF:GC</th>') + '<th>DG</th><th>Pts</th>' + (compact ? '' : '<th class="l">Forma</th>') + '</tr></thead><tbody>' +
       rows.map((r) => {
         const c = s.clubs[r.clubId];
-        return '<tr class="' + (r.clubId === s.clubId ? 'me' : '') + '"><td class="zone ' + SC.zone(L, r.pos) + '"></td><td class="l">' + r.pos + '</td>' +
+        return '<tr class="' + (r.clubId === s.clubId ? 'me' : '') + '"><td class="zone ' + SC.zone(L, r.pos, L.lower ? s.leagues[L.lower] : null) + '"></td><td class="l">' + r.pos + '</td>' +
           '<td class="l club"><span class="row" style="gap:8px">' + UI.crest(c, 20) + '<span class="ellipsis">' + esc(compact ? c.name : c.name) + '</span></span></td><td>' + r.p + '</td>' +
           (compact ? '' : '<td>' + r.w + '</td><td>' + r.d + '</td><td>' + r.l + '</td><td>' + r.gf + ':' + r.ga + '</td>') +
           '<td>' + (r.gd > 0 ? '+' : '') + r.gd + '</td><td class="pts">' + r.pts + '</td>' +

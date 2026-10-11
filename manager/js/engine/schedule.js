@@ -53,16 +53,25 @@
   };
 
   // Zona de cada puesto para colorear la tabla.
-  S.zone = function (league, pos) {
+  S.PLAYOFF_SIZE = { esp: 4, eng: 4, ita: 6, ger: 1, fra: 3 };
+  /* Zona de la tabla. lower: la liga inferior (para saber si el antepenúltimo juega la promoción). */
+  S.zone = function (league, pos, lower) {
     const n = league.clubIds.length;
-    if (league.tier === 1) {
+    if (league.tier === 1 && league.uefa !== false) {
       if (pos === 1) return 'champ';
       if (league.ucl && pos <= league.ucl) return 'ucl';
       if (league.euro && pos <= league.euro) return 'euro';
-      if (league.relegate && pos > n - league.relegate) return 'rel';
-    } else {
-      if (league.promote && pos <= league.promote) return 'pro';
     }
+    if (league.upper) {
+      if (league.promote && pos <= league.promote) return 'pro';
+      if (league.playoff) {
+        const from = league.playoffFrom || (league.promote || 2) + 1;
+        if (pos >= from && pos < from + S.PLAYOFF_SIZE[league.playoff]) return 'po';
+      }
+    }
+    if (league.relegate && pos > n - league.relegate) return 'rel';
+    if (lower && (lower.playoff === 'ger' || lower.playoff === 'fra') && pos === n - (league.relegate || 0)) return 'relpo';
     return '';
   };
+
 })(globalThis.MCM = globalThis.MCM || {});

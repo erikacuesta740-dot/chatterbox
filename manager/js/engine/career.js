@@ -107,7 +107,7 @@
           else if (rank <= n - 5) obj = { code: 'mid', text: 'Terminar en la mitad alta de la tabla', target: Math.ceil(n / 2) + 2 };
           else obj = { code: 'survive', text: L.relegate ? 'Evitar el descenso' : 'Evitar los 3 últimos puestos', target: n - Math.max(3, L.relegate) };
         } else {
-          if (rank <= 3) obj = { code: 'promote', text: 'Lograr el ascenso (top ' + L.promote + ')', target: L.promote };
+          if (rank <= 3) obj = { code: 'promote', text: L.playoff ? 'Lograr el ascenso (directo o por playoff)' : 'Lograr el ascenso (top ' + L.promote + ')', target: L.promote };
           else if (rank <= 8) obj = { code: 'top8', text: 'Pelear por el ascenso (top 8)', target: 8 };
           else if (rank <= n - 5) obj = { code: 'mid', text: 'Terminar en mitad de tabla', target: Math.ceil(n / 2) + 2 };
           else obj = { code: 'survive', text: 'Evitar los últimos puestos', target: n - 4 };
@@ -301,7 +301,7 @@
       // En la ida, el local era el visitante de la vuelta
       if (f1 && f1.played) prior = [f1.ag, f1.hg];
     }
-    return { knockout: true, prior, neutral: !!f.neutral };
+    return { knockout: true, prior, neutral: !!f.neutral, noShootout: !!f.noShootout };
   }
 
   /* Prepara un partido (lados y opciones) sin jugarlo: lo usa el partido en directo. */
@@ -636,27 +636,32 @@
     const scorers = C.topScorers(s, userL.id, 3).map((p) => ({ name: p.name, club: s.clubs[p.clubId].name, goals: p.stats.goals }));
     const mySquad = C.squad(s, s.clubId);
     const myTop = mySquad.slice().sort((a, b) => b.stats.goals - a.stats.goals)[0];
-    const objectiveMet = myRow.pos <= userClub.objective.target;
+    let objectiveMet = myRow.pos <= userClub.objective.target;
 
     // Ascensos y descensos
     const movements = [];
     Object.values(s.leagues).forEach((U1) => {
-      if (!U1.lower || !U1.relegate) return;
+      if (!U1.lower || !s.leagues[U1.lower]) return;
       const Lo = s.leagues[U1.lower];
-      const down = tables[U1.id].slice(-U1.relegate).map((r) => r.clubId);
-      const up = [];
-      tables[Lo.id].forEach((r) => {
-        if (up.length >= Lo.promote) return;
-        const c = s.clubs[r.clubId];
-        if (c.reserveOf && U1.clubIds.includes(c.reserveOf) && !down.includes(c.reserveOf)) return; // filial no puede coincidir con su primer equipo
-        up.push(r.clubId);
-      });
-      U1.clubIds = U1.clubIds.filter((id) => !down.includes(id)).concat(up);
-      Lo.clubIds = Lo.clubIds.filter((id) => !up.includes(id)).concat(down);
+      const down = tables[U1.id].slice(U1.clubIds.length - (U1.relegate || 0)).map((r) => r.clubId);
+      const up = MCM.comps.eligibleOrder(s, Lo).slice(0, Lo.promote || 0);
+      const po = MCM.comps.playoffMoves(s, Lo);
+      po.up.forEach((id) => { if (!up.includes(id)) up.push(id); });
+      po.down.forEach((id) => { if (!down.includes(id)) down.push(id); });
+      // Un filial no sube a la categoría en la que sigue su primer equipo.
+      const ups = up.filter((id) => { const c = s.clubs[id]; return !(c.reserveOf && down.indexOf(c.reserveOf) < 0 && U1.clubIds.includes(c.reserveOf)); });
+      if (ups.length !== down.length) {
+        // Mantener el tamaño de las ligas: se recorta lo que sobre por cualquiera de los dos lados.
+        const k = Math.min(ups.length, down.length);
+        ups.length = k; down.length = k;
+      }
+      U1.clubIds = U1.clubIds.filter((id) => !down.includes(id)).concat(ups);
+      Lo.clubIds = Lo.clubIds.filter((id) => !ups.includes(id)).concat(down);
       down.forEach((id) => { s.clubs[id].leagueId = Lo.id; s.clubs[id].wealth = Lo.wealth; movements.push({ clubId: id, type: 'down', from: U1.id, to: Lo.id }); });
-      up.forEach((id) => { s.clubs[id].leagueId = U1.id; s.clubs[id].wealth = U1.wealth; movements.push({ clubId: id, type: 'up', from: Lo.id, to: U1.id }); });
+      ups.forEach((id) => { s.clubs[id].leagueId = U1.id; s.clubs[id].wealth = U1.wealth; movements.push({ clubId: id, type: 'up', from: Lo.id, to: U1.id }); });
     });
     const myMove = movements.find((m) => m.clubId === s.clubId);
+    if (userClub.objective.code === 'promote' && myMove && myMove.type === 'up') objectiveMet = true;
 
     s.history.unshift({
       season: s.season.label,
@@ -819,6 +824,13 @@
 
   /** Actualiza partidas guardadas con versiones anteriores sin perder nada. */
   C.migrate = function (s) {
+    // Reglas de liga actualizadas (ascensos directos, playoffs) para partidas creadas antes.
+    (MCM.DATA.leagues || []).forEach((D) => {
+      const L = s.leagues[D.id];
+      if (!L) return;
+      ['promote', 'relegate'].forEach((k) => { if (D[k] != null) L[k] = D[k]; });
+      MCM.generator.LEAGUE_RULES.forEach((k) => { if (D[k] != null) L[k] = D[k]; });
+    });
     if (!s.comps) {
       // Partidas anteriores al calendario por fechas: la liga sigue como estaba y las copas y Europa empiezan la próxima temporada.
       s.comps = {};

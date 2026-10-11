@@ -44,7 +44,7 @@ test('temporada completa: ningún club juega dos veces el mismo día y todas las
   });
   K.all(s).forEach((c) => assert.ok(c.winner, c.name + ' sin campeón'));
   // Las eliminatorias siempre tienen ganador; con empate global hay prórroga y, si sigue, penaltis
-  K.all(s).forEach((c) => c.fixtures.filter((f) => f.knockout).forEach((f) => {
+  K.all(s).forEach((c) => c.fixtures.filter((f) => f.knockout && !f.noShootout).forEach((f) => {
     assert.ok(f.winner === f.home || f.winner === f.away, 'eliminatoria sin ganador');
     if (f.pens) assert.ok(f.et && f.pens[0] !== f.pens[1]);
   }));
@@ -53,6 +53,28 @@ test('temporada completa: ningún club juega dos veces el mismo día y todas las
   assert.strictEqual(cup.rounds[cup.rounds.length - 1].name, 'Final');
   assert.ok(s.trophies[cup.winner].some((t) => t.name === 'Copa del Rey'));
   assert.deepStrictEqual(C.validate(s), []);
+});
+
+test('playoffs de ascenso: Segunda (ida y vuelta) y Championship (final única); ascensos y descensos cuadran', () => {
+  const s = fresh('cd-leganes', 'playoff');
+  C.simulateUntil(s);
+  const esp = s.comps.PO_ESP2;
+  const eng = s.comps.PO_ENG2;
+  assert.ok(esp && eng, 'se crean al terminar la liga');
+  const tEsp = K.eligibleOrder(s, s.leagues.ESP2);
+  assert.deepStrictEqual(esp.seeds, tEsp.slice(2, 6), 'juegan del 3º al 6º');
+  assert.deepStrictEqual(esp.rounds.map((r) => r.name), ['Semifinales', 'Final']);
+  assert.ok(esp.rounds.every((r) => r.ties.every((t) => t.fixtures.length === 2)), 'Segunda: todo a ida y vuelta');
+  assert.strictEqual(eng.rounds[1].ties[0].fixtures.length, 1, 'Championship: final a partido único');
+  const lastLeague = s.leagues.ESP2.fixtures.reduce((m, f) => (f.date > m ? f.date : m), '');
+  assert.ok(esp.fixtures.every((f) => f.date > lastLeague), 'después de la liga');
+  assert.ok(esp.promoted && eng.promoted);
+  const up = tEsp.slice(0, 2).concat([esp.promoted]);
+  C.endSeason(s);
+  up.forEach((id) => assert.strictEqual(s.clubs[id].leagueId, 'ESP1'));
+  assert.strictEqual(s.leagues.ESP1.clubIds.length, 20);
+  assert.strictEqual(s.leagues.ESP2.clubIds.length, 22);
+  assert.strictEqual(s.leagues.ENG2.clubIds.length, 24);
 });
 
 test('la segunda temporada clasifica a Europa según la tabla anterior', () => {

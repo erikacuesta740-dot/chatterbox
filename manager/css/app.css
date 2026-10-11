@@ -231,6 +231,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabula
 .zone.euro { background: color-mix(in srgb, var(--info) 45%, transparent); }
 .zone.rel { background: var(--bad); }
 .zone.pro { background: var(--good); }
+.zone.po { background: color-mix(in srgb, var(--good) 45%, transparent); }
+.zone.relpo { background: color-mix(in srgb, var(--bad) 45%, transparent); }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 

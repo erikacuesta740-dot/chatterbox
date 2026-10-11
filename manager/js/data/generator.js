@@ -15,6 +15,8 @@
   };
 
   G.baseOvr = (rep) => 48 + rep * 0.38;
+  // Reglas de liga opcionales que se copian a la partida (y se actualizan en partidas antiguas).
+  G.LEAGUE_RULES = ['playoff', 'playoffFrom', 'uefa', 'spots', 'region'];
 
   function pickNation(rng, leagueNat) {
     if (rng.chance(0.55)) return leagueNat;
@@ -210,6 +212,7 @@
         upper: L.upper || null, lower: L.lower || null, promote: L.promote || 0, relegate: L.relegate || 0,
         euro: L.euro || 0, ucl: L.ucl || 0, wealth: L.wealth || 1, clubIds, fixtures: [], played: 0, totalMd: 0,
       };
+      G.LEAGUE_RULES.forEach((k) => { if (L[k] != null) leagues[L.id][k] = L[k]; });
     });
     // Agentes libres
     const freeAgents = [];

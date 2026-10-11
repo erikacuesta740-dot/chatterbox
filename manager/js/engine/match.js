@@ -317,7 +317,7 @@
       st.et = true;
       for (let k = 0; k < 6; k++) playSeg(st, SEG + k, 90 + k * 5, 0.85);
       st.events.sort((a, b) => a.min - b.min);
-      if (knockoutTied(st)) shootout(st);
+      if (knockoutTied(st) && !st.opts.noShootout) shootout(st);
     }
     const end = st.et ? 120 : 90;
     st.on.forEach((list) => list.forEach((e) => { st.minutes[e.p.id] = (st.minutes[e.p.id] || 0) + (end - e.minIn); }));

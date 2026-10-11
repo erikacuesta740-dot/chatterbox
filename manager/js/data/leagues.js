@@ -49,7 +49,7 @@
     },
     {
       id: 'ESP2', name: 'Segunda División', country: 'España', nat: 'ESP', tier: 2,
-      upper: 'ESP1', promote: 3, wealth: 0.35,
+      upper: 'ESP1', promote: 2, playoff: 'esp', wealth: 0.35,
       clubs: [
         ['UD Las Palmas', 'LPA', 60, 'Estadio de Gran Canaria', '#ffe400', '#004a99'],
         ['UD Almería', 'ALM', 59, 'Estadio de los Juegos Mediterráneos', '#ee1119', '#ffffff'],
@@ -103,7 +103,7 @@
     },
     {
       id: 'ENG2', name: 'Championship', country: 'Inglaterra', nat: 'ENG', tier: 2,
-      upper: 'ENG1', promote: 3, wealth: 0.5,
+      upper: 'ENG1', promote: 2, playoff: 'eng', wealth: 0.5,
       clubs: [
         ['Leicester City', 'LEI', 66, 'King Power Stadium', '#003090', '#fdbe11'],
         ['Southampton', 'SOU', 66, "St Mary's Stadium", '#d71920', '#ffffff'],
@@ -206,4 +206,26 @@
       ],
     },
   ];
+
+  /*
+   * Añade una liga (archivos js/data/world/*.js). def: igual que las de arriba, más:
+   *  - upperRelegate: descensos directos de la liga superior a esta (enlaza upper.lower y upper.relegate).
+   *  - uefa: false para ligas de fuera de Europa (no clasifican para competiciones UEFA).
+   *  - spots: { UCL, UEL, UECL } plazas europeas por clasificación (por defecto 4/2/2 en las cinco grandes).
+   * rosters: plantillas reales por slug del club (mismo formato que real-rosters.js).
+   */
+  MCM.DATA.addLeague = function (def, rosters) {
+    const list = MCM.DATA.leagues;
+    if (list.some((L) => L.id === def.id)) return;
+    if (def.upper) {
+      const up = list.find((L) => L.id === def.upper);
+      if (up) { up.lower = def.id; up.relegate = def.upperRelegate || 0; }
+    }
+    const i = list.map((L) => L.nat).lastIndexOf(def.nat);
+    if (i >= 0) list.splice(i + 1, 0, def); else list.push(def);
+    if (rosters) {
+      MCM.DATA.realRosters = MCM.DATA.realRosters || {};
+      Object.assign(MCM.DATA.realRosters, rosters);
+    }
+  };
 })(globalThis.MCM = globalThis.MCM || {});
