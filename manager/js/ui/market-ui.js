@@ -96,7 +96,6 @@
   };
 
   function dealCard(s, p) {
-    if (s.online) return '<section class="card"><h3>Mercado</h3><p class="small muted">En el modo online contra un amigo no hay fichajes: gana quien mejor dirija su plantilla.</p></section>';
     const mine = p.clubId === s.clubId;
     const talk = T.talkFor(s, p.id);
     let html = '<section class="card"><div class="section-head"><h3>' + (mine ? (p.academy ? 'Cantera' : 'Contrato y mercado') : 'Fichar') + '</h3>' + (p.academy ? '' : windowChip(s)) + '</div>';

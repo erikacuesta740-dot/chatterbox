@@ -81,23 +81,49 @@
       clubs.map((c) => (taken[c.id] ? '<div class="prow" style="opacity:.5">' + UI.crest(c, 30) + '<span class="grow"><span class="name" style="display:block">' + esc(c.name) + '</span><span class="meta">Lo tiene ' + esc(taken[c.id]) + '</span></span></div>'
         : '<button class="prow" data-act="' + act + '" data-club="' + esc(c.id) + '" data-league="' + esc(L.id) + '"' + (extra || '') + '>' + UI.crest(c, 30) + '<span class="grow"><span class="name" style="display:block">' + esc(c.name) + '</span><span class="meta">' + esc(c.stadium || '') + '</span></span>' + UI.ovr(Math.round(MCM.generator.baseOvr(c.rep) + 2)) + '</button>')).join('') + '</div></section>';
   }
+  function starsChips() {
+    const G = MCM.generator;
+    const cur = st.stars || 3;
+    return '<section class="card"><h3>Nivel de los clubes creados</h3><p class="small muted">Todos los que creen su propio club en esta sala empezarán con esta media en el once.</p><div class="chips">' +
+      [1, 2, 3, 4, 5].map((n) => '<button class="chip ' + (n === cur ? 'on' : '') + '" data-act="on-stars" data-v="' + n + '">' + G.starsLabel(n) + ' · ' + G.STARS[n] + '</button>').join('') + '</div></section>';
+  }
+  /* Formulario para crear tu propio club en la sala. */
+  function customCard(L, submit, meta) {
+    const taken = meta ? RU.takenIds(meta) : [];
+    const stars = meta ? meta.customStars || 3 : st.stars || 3;
+    if (!st.customForm) return '<button class="btn block" data-act="on-custom">' + UI.icon('plus') + 'Crear mi propio club (' + MCM.generator.starsLabel(stars) + ')</button>';
+    const free = MCM.generator.weakestFree(RU.dataset(), L.id, taken);
+    const freeName = (RU.leagueClubs(L.id).find((c) => c.id === free) || {}).name;
+    return '<form class="card stack" data-submit="' + submit + '"' + (meta ? ' data-code="' + esc(meta.code) + '"' : '') + '><div class="section-head"><h2>Crear mi club</h2><button type="button" class="btn sm ghost" data-act="on-custom">Cancelar</button></div>' +
+      App.h.customClubFields(L, { fixedStars: stars, noReplace: true }) +
+      (freeName ? '<p class="small muted">Ocupará la plaza de ' + esc(freeName) + ' (el club más flojo que queda libre).</p>' : '') +
+      '<button class="btn primary block" type="submit">' + (meta ? 'Entrar con mi club' : 'Crear la sala con mi club') + '</button></form>';
+  }
   V.onlineCreate = function () {
     if (!R.available()) return { title: 'Crear sala', html: needCloud(), tabs: false };
     const leagues = realLeagues();
     const L = leagues.find((l) => l.id === st.league) || leagues[0];
-    const html = '<p class="notice small">La liga que elijas será la de todos. El mundo incluye las demás ligas de ese país, copas y Europa. En este modo no hay fichajes: gana quien mejor dirija su plantilla.</p>' + clubPicker(leagues, L, 'on-create');
+    const html = '<p class="notice small">La liga que elijas será la de todos. El mundo incluye las demás ligas de ese país, copas y Europa. Es una carrera normal: cada uno ficha, vende y cede con su presupuesto.</p>' +
+      starsChips() + customCard(L, 'on-create-custom') + clubPicker(leagues, L, 'on-create');
     return { title: 'Crear sala', sub: 'Elige liga y club', html, tabs: false };
   };
   App.CHANGES['on-country'] = (el) => { const l = realLeagues().find((x) => x.country === el.value); if (l) st.league = l.id; App.render(); };
   A['on-league'] = (d) => { st.league = d.id; App.render(); };
-  A['on-create'] = async (d) => {
+  A['on-stars'] = (d) => { st.stars = Number(d.v); App.render(); };
+  A['on-custom'] = () => { st.customForm = !st.customForm; App.render(); };
+  async function doCreate(leagueId, choice) {
     await H.busy('Creando la sala…');
     try {
-      const meta = await R.create(d.league, d.club);
-      st.rooms = null;
+      const meta = await R.create(leagueId, choice, st.stars || 3);
+      st.rooms = null; st.customForm = false;
       H.unbusy();
       openRoom(meta.code, true);
     } catch (e) { H.toast(e.message || 'No se pudo crear la sala'); } finally { H.unbusy(); }
+  }
+  A['on-create'] = (d) => doCreate(d.league, { clubId: d.club });
+  F['on-create-custom'] = (fd) => {
+    const L = realLeagues().find((l) => l.id === st.league) || realLeagues()[0];
+    return doCreate(L.id, { custom: App.h.customFromForm(fd, L.id) });
   };
 
   // ---------- Unirse ----------
@@ -106,19 +132,23 @@
     if (!meta || meta.code !== params.code) return { title: 'Unirse', html: '<p class="small muted">Vuelve a escribir el código.</p>', tabs: false };
     const L = realLeagues().find((l) => l.id === meta.leagueId);
     const ps = RU.players(meta);
-    const html = '<section class="card"><h3>Sala ' + esc(meta.code) + ' · ' + esc(meta.leagueName) + '</h3><p class="small">' + ps.length + ' de ' + RU.maxPlayers(meta) + ' jugadores: ' + ps.map((p) => esc(p.name) + ' (' + esc(p.club) + ')').join(', ') + '. Elige tu club:</p></section>' +
-      clubPicker([L], L, 'on-join', ' data-code="' + esc(meta.code) + '"', ps);
+    // Las plazas ocupadas por clubes creados también salen como cogidas.
+    const takenList = ps.map((p) => ({ clubId: p.custom ? p.custom.replaces : p.clubId, name: p.custom ? p.name + ' (ahora ' + p.club + ')' : p.name }));
+    const html = '<section class="card"><h3>Sala ' + esc(meta.code) + ' · ' + esc(meta.leagueName) + '</h3><p class="small">' + ps.length + ' de ' + RU.maxPlayers(meta) + ' jugadores: ' + ps.map((p) => esc(p.name) + ' (' + esc(p.club) + ')').join(', ') + '. Elige tu club o crea uno:</p></section>' +
+      customCard(L, 'on-join-custom', meta) + clubPicker([L], L, 'on-join', ' data-code="' + esc(meta.code) + '"', takenList);
     return { title: 'Unirse a la sala', sub: meta.leagueName, html, tabs: false };
   };
-  A['on-join'] = async (d) => {
+  async function doJoin(code, choice) {
     await H.busy('Entrando en la sala…');
     try {
-      await R.join(d.code, d.club);
-      st.rooms = null;
+      await R.join(code, choice);
+      st.rooms = null; st.customForm = false;
       H.unbusy();
-      openRoom(d.code, true);
+      openRoom(code, true);
     } catch (e) { H.toast(e.message || 'No se pudo entrar'); } finally { H.unbusy(); }
-  };
+  }
+  A['on-join'] = (d) => doJoin(d.code, { clubId: d.club });
+  F['on-join-custom'] = (fd) => doJoin(st.join.code, { custom: App.h.customFromForm(fd, st.join.leagueId) });
 
   // ---------- Sala ----------
   function openRoom(code, replace) {
@@ -142,6 +172,7 @@
       const s = await R.loadWorld(meta);
       if (!st.room || st.room.rev !== meta.rev) return;
       App.s = s;
+      st.actions = [];
       if (App.view === 'onlineRoom' || App.view === 'hub') App.render();
     } catch (e) {
       loadingRev = 0;
@@ -196,7 +227,12 @@
       (net && others.some((p) => !isOnline(p)) ? '<p class="small muted">Los que están «fuera» tienen que abrir la sala para poder jugar la jornada.</p>' : '') +
       (imReady ? '<button class="btn block" data-act="on-unready">Esperando a ' + esc(waiting.map((p) => p.name).join(', ') || 'los demás') + '… (quitar «Listo»)</button>'
         : '<button class="btn primary block" data-act="on-ready">' + (finished ? 'Listo para la nueva temporada' : 'Listo: jugar la jornada') + '</button>') +
-      '<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="tactics">Tácticas y once</button><button class="btn sm" data-act="tab" data-view="squad">Plantilla</button><button class="btn sm" data-act="tab" data-view="table">Torneos</button></div></section>';
+      '<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="tactics">Tácticas y once</button><button class="btn sm" data-act="tab" data-view="squad">Plantilla</button><button class="btn sm" data-act="tab" data-view="table">Torneos</button><button class="btn sm" data-act="nav" data-view="market">Mercado</button></div></section>';
+    const pend = ((s.market && s.market.offers) || []).filter((o) => o.status === 'pending').length;
+    const win = MCM.market.window(s);
+    html += '<section class="card small"><div class="row"><span class="grow">' + (win.open ? '<b>Mercado abierto.</b> ' : 'Mercado cerrado. ') + 'Presupuesto: <b>' + U.money(myClub.budget) + '</b>' +
+      (pend ? ' · <b>' + pend + ' oferta' + (pend > 1 ? 's' : '') + ' por tus jugadores</b>' : '') + (st.actions && st.actions.length ? ' · ' + st.actions.length + ' operación(es) se aplicarán al jugar la jornada' : '') + '</span>' +
+      '<button class="btn sm" data-act="nav" data-view="market">Ver</button></div></section>';
     if (m.last && m.last.results && m.last.results.length) {
       const rs = m.last.results.filter((r) => s.clubs[r.home] && s.clubs[r.away]);
       const mine = rs.filter((r) => r.home === s.clubId || r.away === s.clubId);
@@ -229,7 +265,7 @@
   A['on-ready'] = async () => {
     await H.busy('Enviando tu alineación…');
     try {
-      const r = await R.ready(st.room, O.extractOrders(App.s, App.s.clubId));
+      const r = await R.ready(st.room, O.extractOrders(App.s, App.s.clubId, st.actions));
       if (r.stepped) H.toast(r.result.kind === 'season' ? 'Nueva temporada' : 'Jornada jugada');
     } catch (e) { H.toast(e.message || 'No se pudo enviar'); } finally { H.unbusy(); }
   };
@@ -253,17 +289,39 @@
     const s = App.s;
     if (!s || !s.online) return;
     clearTimeout(ordersTimer);
-    ordersTimer = setTimeout(() => { R.saveOrders(s.online.code, O.extractOrders(s, s.clubId)).catch(() => H.toast('No se pudo guardar tu alineación en la sala')); }, 600);
+    ordersTimer = setTimeout(() => { R.saveOrders(s.online.code, O.extractOrders(s, s.clubId, st.actions)).catch(() => H.toast('No se pudo guardar tu alineación en la sala')); }, 600);
   };
   const baseMenu = V.menu;
   V.menu = function (params) {
     const s = App.s;
     if (!s || !s.online) return baseMenu(params);
-    const html = '<section class="plist">' + [['hub', 'Sala ' + s.online.code, 'Jornada y resultados'], ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation], ['squad', 'Plantilla', ''], ['calendar', 'Calendario', ''], ['table', 'Torneos', '']]
+    const html = '<section class="plist">' + [['hub', 'Sala ' + s.online.code, 'Jornada y resultados'], ['tactics', 'Tácticas y alineación', s.clubs[s.clubId].tactics.formation], ['squad', 'Plantilla', ''],
+      ['market', 'Mercado de fichajes', MCM.market.window(s).open ? 'Ventana abierta' : 'Ventana cerrada'], ['freeagents', 'Agentes libres', s.freeAgents.length + ' sin equipo'],
+      ['finance', 'Finanzas y contratos', U.money(s.clubs[s.clubId].budget) + ' para fichajes'], ['news', 'Noticias', s.news.filter((n) => !n.read).length + ' sin leer'],
+      ['calendar', 'Calendario', ''], ['table', 'Torneos', '']]
       .map(([v, t, m]) => '<button class="prow" data-act="nav" data-view="' + v + '"><span class="grow"><span class="name" style="display:block">' + esc(t) + '</span><span class="meta">' + esc(m) + '</span></span></button>').join('') + '</section>' +
       '<button class="btn ghost block" data-act="on-exit">Salir de la sala</button>';
     return { title: 'Menú', sub: 'Modo online', html };
   };
+  // Las operaciones de mercado hechas en este móvil se apuntan y viajan con tus órdenes; al avanzar se repiten en el mundo de todos.
+  st.actions = st.actions || [];
+  let depth = 0;
+  O.ACTIONS.forEach((fn) => {
+    const orig = MCM.market[fn];
+    if (typeof orig !== 'function' || orig.__logged) return;
+    const wrapped = function (s) {
+      const log = depth === 0 && s && s === App.s && s.online;
+      const args = log ? JSON.parse(JSON.stringify(Array.prototype.slice.call(arguments, 1))) : null;
+      depth++;
+      try { return orig.apply(this, arguments); } finally {
+        depth--;
+        if (log) { st.actions.push({ fn, args }); App.onlinePersist(); }
+      }
+    };
+    wrapped.__logged = true;
+    MCM.market[fn] = wrapped;
+  });
+
   // Botón en la pantalla de inicio
   const baseStart = V.start;
   V.start = function (params) {

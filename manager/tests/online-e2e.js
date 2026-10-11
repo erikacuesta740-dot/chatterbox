@@ -78,18 +78,23 @@ const MOCK = ({ uid, name }) => {
     await a.click('[data-view="online"]');
     await a.click('[data-view="onlineCreate"]');
     await a.click('[data-act="on-league"][data-id="ESP2"]');
+    await a.click('[data-act="on-stars"][data-v="4"]');
     await a.click('[data-act="on-create"][data-club="albacete-balompie"]');
     await a.waitForSelector('text=Código de la sala');
     const code = await a.evaluate(() => MCM.app.ui.online.code);
     console.log('  código', code);
 
-    step('el amigo entra con el código y elige el Córdoba');
+    step('el amigo entra con el código y crea su propio club (4 estrellas, fijadas por Erika)');
     await b.click('[data-view="online"]');
     await b.fill('#on-code', code);
     await b.click('form[data-submit="on-code"] button[type=submit]');
     await b.waitForSelector('[data-act="on-join"][data-club="cordoba-cf"]');
     if (await b.$('[data-act="on-join"][data-club="albacete-balompie"]')) throw new Error('El club del creador no debería poder elegirse');
-    await b.click('[data-act="on-join"][data-club="cordoba-cf"]');
+    await b.click('[data-act="on-custom"]');
+    if (!(await b.$('text=Nivel fijado por el creador'))) throw new Error('El nivel lo fija el creador');
+    await b.fill('#cc-name', 'Real Amigos');
+    await b.fill('#cc-short', 'RAM');
+    await b.click('form[data-submit="on-join-custom"] button[type=submit]');
     await b.waitForSelector('text=Esperando a que Erika');
 
     step('una tercera jugadora entra con el Real Zaragoza');
@@ -98,7 +103,8 @@ const MOCK = ({ uid, name }) => {
     await c.fill('#on-code', code);
     await c.click('form[data-submit="on-code"] button[type=submit]');
     await c.waitForSelector('[data-act="on-join"][data-club="real-zaragoza"]');
-    if (await c.$('[data-act="on-join"][data-club="cordoba-cf"]')) throw new Error('Un club ya elegido no debería poder elegirse');
+    const replaced = await c.evaluate(() => MCM.app.ui.online.join.players.find((p) => p.custom).custom.replaces);
+    if (await c.$('[data-act="on-join"][data-club="' + replaced + '"]')) throw new Error('La plaza del club creado no debería poder elegirse');
     await c.click('[data-act="on-join"][data-club="real-zaragoza"]');
     await c.waitForSelector('text=Esperando a que Erika');
 
@@ -108,6 +114,18 @@ const MOCK = ({ uid, name }) => {
     await a.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
     await b.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
     await c.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
+
+    step('el amigo ficha a un jugador desde su móvil');
+    const signed = await b.evaluate(() => {
+      const s = MCM.app.s; const T = MCM.market;
+      const p = MCM.career.squad(s, s.leagues.ESP2.clubIds.filter((id) => !s.humans.includes(id))[3]).filter((x) => !x.loan).sort((x, y) => x.value - y.value)[2];
+      const st = T.start(s, p.id, 'buy'); if (!st.talk) return { error: st.error };
+      const r1 = T.offerClub(s, p.id, st.talk.asking); const r2 = T.offerContract(s, p.id, T.talkFor(s, p.id).demand);
+      return { pid: p.id, r1: r1.status, r2: r2.status, actions: MCM.app.ui.online.actions.length, club: s.clubId, avg: MCM.generator.xiAverage(s.players, s.clubs[s.clubId]) };
+    });
+    console.log('  ', JSON.stringify(signed));
+    if (signed.r2 !== 'done' || signed.actions !== 3) throw new Error('El fichaje no se hizo: ' + JSON.stringify(signed));
+    if (Math.abs(signed.avg - 77) > 2) throw new Error('Media del club creado ' + signed.avg);
 
     step('el amigo cambia a 4-4-2 desde su móvil');
     await b.evaluate(() => MCM.app.go('tactics', {}));
@@ -134,11 +152,17 @@ const MOCK = ({ uid, name }) => {
       if (!info.n) throw new Error('La jornada no tiene resultados de los jugadores');
     }
 
+    step('el fichaje del amigo está en el mundo de todos');
+    for (const pg of [a, b, c]) {
+      const who = await pg.evaluate((pid) => MCM.app.s.players[pid].clubId, signed.pid);
+      if (who !== signed.club) throw new Error('Fichaje no aplicado en todos: ' + who);
+    }
+
     step('los dos ven el mismo mundo y cada uno su club');
-    const sa = await a.evaluate(() => ({ club: MCM.app.s.clubId, date: MCM.app.s.date, played: MCM.career.fixtures(MCM.app.s).filter((f) => f.played).length, f: MCM.app.s.clubs['cordoba-cf'].tactics.formation }));
+    const sa = await a.evaluate(() => ({ club: MCM.app.s.clubId, date: MCM.app.s.date, played: MCM.career.fixtures(MCM.app.s).filter((f) => f.played).length, f: MCM.app.s.clubs[MCM.app.s.humans[1]].tactics.formation }));
     const sb = await b.evaluate(() => ({ club: MCM.app.s.clubId, date: MCM.app.s.date, played: MCM.career.fixtures(MCM.app.s).filter((f) => f.played).length }));
     console.log('  ', JSON.stringify(sa), JSON.stringify(sb));
-    if (sa.club !== 'albacete-balompie' || sb.club !== 'cordoba-cf') throw new Error('Clubes cambiados');
+    if (sa.club !== 'albacete-balompie' || sb.club !== signed.club || !/^mi-/.test(sb.club)) throw new Error('Clubes cambiados');
     const sc = await c.evaluate(() => ({ club: MCM.app.s.clubId, humans: MCM.app.s.humans.length }));
     if (sc.club !== 'real-zaragoza' || sc.humans !== 3) throw new Error('La tercera jugadora no está en la partida: ' + JSON.stringify(sc));
     if (sa.date !== sb.date || sa.played !== sb.played) throw new Error('Mundos distintos');

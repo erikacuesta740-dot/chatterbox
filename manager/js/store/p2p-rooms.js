@@ -147,10 +147,9 @@
     const m = r.meta;
     if (!m) return 'La sala no está lista.';
     if (RU.me(m, msg.uid)) return null;
-    const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    const err = RU.joinError(m, msg.uid, msg.clubId, s);
-    if (err) return err;
-    m.players = RU.players(m).concat([{ uid: msg.uid, name: msg.name || 'Jugador', clubId: msg.clubId, club: s.clubs[msg.clubId].name }]);
+    const c = RU.choose(m, msg.uid, msg.name || 'Jugador', msg.choice || { clubId: msg.clubId });
+    if (c.error) return c.error;
+    m.players = RU.players(m).concat([c.player]);
     m.uids = m.players.map((p) => p.uid);
     m.updatedAt = new Date().toISOString();
     await saveLocal(r);
@@ -255,30 +254,35 @@
     return r.meta;
   };
 
-  P.create = async function (leagueId, clubId) {
+  P.create = async function (leagueId, choice, stars) {
     let code = '';
     for (let i = 0; i < 5; i++) code += ALPHA[Math.floor(Math.random() * ALPHA.length)];
-    const s = MCM.online.createWorld({ leagueId, clubId, seed: 'room-' + code + '-' + Date.now(), code, name: me.name });
-    const L = s.leagues[leagueId];
+    const L0 = RU.dataset().leagues.find((l) => l.id === leagueId);
+    const meta = {
+      code, rev: 1, status: 'lobby', leagueId, leagueName: L0.name, country: L0.country, p2p: true, customStars: stars || 3, seed: 'room-' + code + '-' + Date.now(),
+      players: [], uids: [], maxPlayers: Math.min(RU.MAX, L0.clubs.length), hostUid: me.uid,
+      ready: {}, last: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    const c = RU.choose(meta, me.uid, me.name, choice);
+    if (c.error) throw new Error(c.error);
+    meta.host = c.player;
+    meta.players = [c.player];
+    meta.uids = [me.uid];
+    const s = RU.buildWorld(meta);
     const r = await room(code);
     const packed = await packWorld(s);
     r.packed = { rev: 1, enc: packed.enc, data: packed.data };
-    const host = { uid: me.uid, name: me.name, clubId, club: s.clubs[clubId].name };
-    r.meta = {
-      code, rev: 1, status: 'lobby', leagueId, leagueName: L.name, country: L.country, p2p: true,
-      host, players: [host], uids: [me.uid], maxPlayers: Math.min(RU.MAX, L.clubIds.length), hostUid: me.uid,
-      ready: {}, last: null, season: s.season.label, date: s.date, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    };
+    r.meta = Object.assign(meta, { season: s.season.label, date: s.date });
     await saveLocal(r);
     await P.connect(code);
     return r.meta;
   };
 
-  P.join = async function (code, clubId) {
+  P.join = async function (code, choice) {
     code = P.normalize(code);
     const r = await P.connect(code, true);
     if (r.role !== 'guest' || !r.conn || !r.conn.open) throw new Error('No hay conexión con la sala. El creador tiene que tenerla abierta.');
-    const res = await new Promise((resolve) => { r.joinWaiter = resolve; send(r.conn, { t: 'join', uid: me.uid, name: me.name, clubId }); setTimeout(() => { if (r.joinWaiter === resolve) { r.joinWaiter = null; resolve({ ok: false, error: 'La sala no responde.' }); } }, 15000); });
+    const res = await new Promise((resolve) => { r.joinWaiter = resolve; send(r.conn, { t: 'join', uid: me.uid, name: me.name, choice }); setTimeout(() => { if (r.joinWaiter === resolve) { r.joinWaiter = null; resolve({ ok: false, error: 'La sala no responde.' }); } }, 15000); });
     if (!res.ok) throw new Error(res.error || 'No se pudo entrar');
     return r.meta;
   };
@@ -300,9 +304,9 @@
     const r = await room(meta.code);
     if (!r.packed || r.packed.rev !== meta.rev) throw new Error('Esperando la partida…');
     const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    const mine = RU.me(meta, me.uid);
-    if (mine) s.clubId = mine.clubId;
     s.online = Object.assign({}, s.online || {}, { code: meta.code, rev: meta.rev, p2p: true });
+    const mine = RU.me(meta, me.uid);
+    if (mine) MCM.online.viewAs(s, mine.clubId);
     s.id = 'online-' + meta.code;
     return s;
   };
@@ -322,8 +326,7 @@
     if (meta.host.uid !== me.uid) throw new Error('Solo quien creó la sala puede empezar.');
     if (RU.players(r.meta).length < 2) throw new Error('Falta al menos un amigo.');
     if (r.role !== 'host') throw new Error('Abre la sala desde este móvil para empezar.');
-    const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
-    RU.players(r.meta).forEach((p) => MCM.online.addHuman(s, p.clubId));
+    const s = RU.buildWorld(r.meta);
     await commit(r, s, { status: 'playing' });
   };
 
@@ -362,9 +365,11 @@
     stepping = true;
     try {
       const s = JSON.parse(await MCM.cloud.unpack(r.packed.enc, r.packed.data));
+      s.online = Object.assign({}, s.online || {}, { code, rev: r.meta.rev, p2p: true });
+      MCM.online.viewAs(s, (RU.me(r.meta, me.uid) || r.meta.host).clubId);
       RU.players(r.meta).forEach((u) => { if (r.orders[u.uid]) MCM.online.applyOrders(s, r.orders[u.uid]); });
-      s.clubId = (RU.me(r.meta, me.uid) || r.meta.host).clubId;
       const res = MCM.online.step(s);
+      MCM.online.viewAs(s, s.clubId);
       await commit(r, s, { last: { kind: res.kind, label: res.label || null, date: res.date || null, results: RU.lastResults(res), rev: r.meta.rev + 1 } });
       return { stepped: true, result: res };
     } finally { stepping = false; }

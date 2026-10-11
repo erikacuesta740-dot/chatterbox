@@ -558,7 +558,7 @@
       let prob = p.listed ? 0.3 : role === 'clave' ? 0.035 : role === 'joven' && p.pot >= 80 ? 0.03 : 0.012;
       if (!rng.chance(prob)) return;
       const ref = T.reference(s, p).value;
-      const buyers = Object.values(s.clubs).filter((c) => c.id !== s.clubId && c.budget >= ref * 0.8 &&
+      const buyers = Object.values(s.clubs).filter((c) => c.id !== s.clubId && !C().isHuman(s, c.id) && c.budget >= ref * 0.8 &&
         p.ovr >= MCM.generator.baseOvr(c.rep) - 2 && p.ovr <= MCM.generator.baseOvr(c.rep) + 12);
       if (!buyers.length) return;
       const b = rng.pick(buyers);
@@ -631,6 +631,17 @@
   T.ticketIncome = (club) => roundMoney(1.6e6 * Math.pow(club.rep / 95, 2.8));
 
   T.weekly = function (s) {
+    if (s.online && s.users) {
+      // Online: un mercado de la IA para todos y, para cada jugador, sus salarios y las ofertas que recibe.
+      const rng0 = U.rng(s.seed + ':mk:' + s.season.label + ':' + (s.week || 0));
+      aiWindow(s, rng0);
+      (s.humans || []).forEach((id) => C().asUser(s, id, () => {
+        T.init(s);
+        s.market.fin.expense.wages += C().wageBill(s, s.clubId);
+        generateOffers(s, U.rng(s.seed + ':mk:' + id + ':' + s.season.label + ':' + (s.week || 0)));
+      }));
+      return;
+    }
     T.init(s);
     const rng = U.rng(s.seed + ':mk:' + s.season.label + ':' + (s.week || 0));
     s.market.fin.expense.wages += C().wageBill(s, s.clubId);

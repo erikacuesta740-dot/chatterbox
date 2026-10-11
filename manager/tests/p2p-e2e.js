@@ -59,14 +59,16 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
     await b.click('[data-act="on-join"][data-club="chelsea"]');
     await b.waitForSelector('text=Esperando a que Erika', { timeout: 30000 });
 
-    step('una tercera jugadora entra con el Liverpool');
+    step('una tercera jugadora entra creando su club');
     let c = await open(ctxC, 'Amiga');
     await c.click('[data-view="online"]');
     await c.fill('#on-name', 'Amiga'); await c.click('form[data-submit="on-name"] button'); await c.waitForSelector('text=Nombre guardado'); await c.waitForTimeout(300);
     await c.fill('#on-code', code);
     await c.click('form[data-submit="on-code"] button[type=submit]');
     await c.waitForSelector('[data-act="on-join"][data-club="liverpool"]', { timeout: 30000 });
-    await c.click('[data-act="on-join"][data-club="liverpool"]');
+    await c.click('[data-act="on-custom"]');
+    await c.fill('#cc-name', 'Las Amigas FC');
+    await c.click('form[data-submit="on-join-custom"] button[type=submit]');
     await c.waitForSelector('text=Esperando a que Erika', { timeout: 30000 });
 
     step('empieza la temporada');
@@ -76,6 +78,16 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
     await b.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
     await c.waitForSelector('[data-act="on-ready"]', { timeout: 30000 });
 
+    step('el amigo ficha desde su móvil');
+    const signed = await b.evaluate(() => {
+      const s = MCM.app.s; const T = MCM.market;
+      const p = MCM.career.squad(s, s.leagues.ENG1.clubIds.filter((id) => !s.humans.includes(id))[5]).filter((x) => !x.loan).sort((x, y) => x.value - y.value)[2];
+      const st = T.start(s, p.id, 'buy'); if (!st.talk) return { error: st.error };
+      T.offerClub(s, p.id, st.talk.asking); const r2 = T.offerContract(s, p.id, T.talkFor(s, p.id).demand);
+      return { pid: p.id, r2: r2.status };
+    });
+    if (signed.r2 !== 'done') throw new Error('Fichaje: ' + JSON.stringify(signed));
+
     step('el amigo cambia a 3-5-2');
     await b.evaluate(() => MCM.app.go('tactics', {}));
     await b.click('[data-act="formation"][data-v="3-5-2"]');
@@ -84,6 +96,7 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
     await playDay(a, b, 'jornada 1 (3 jugadores):', [c]);
     await playDay(c, b, 'jornada 2 (empieza la tercera):', [a]);
     const f = await a.evaluate(() => MCM.app.s.clubs.chelsea.tactics.formation);
+    for (const pg of [a, c]) { const who = await pg.evaluate((pid) => MCM.app.s.players[pid].clubId, signed.pid); if (who !== 'chelsea') throw new Error('Fichaje no aplicado: ' + who); }
     if (f !== '3-5-2') throw new Error('No llegó la táctica del amigo: ' + f);
 
     step('los dos guardan copia: se cierran y vuelven a abrir (primero el amigo)');
@@ -112,7 +125,7 @@ const PEER = { host: '127.0.0.1', port: Number(process.env.PEER_PORT || 9000), p
     console.log('  ', JSON.stringify(sa), JSON.stringify(sb));
     const sc = await c.evaluate(() => ({ club: MCM.app.s.clubId, date: MCM.app.s.date, humans: MCM.app.s.humans.length }));
     if (sa.club !== 'arsenal' || sb.club !== 'chelsea' || sa.date !== sb.date || sa.played !== sb.played) throw new Error('Mundos distintos');
-    if (sc.club !== 'liverpool' || sc.date !== sa.date || sc.humans !== 3) throw new Error('La tercera jugadora no está bien: ' + JSON.stringify(sc));
+    if (sc.club !== 'mi-las-amigas-fc' || sc.date !== sa.date || sc.humans !== 3) throw new Error('La tercera jugadora no está bien: ' + JSON.stringify(sc));
     if (process.env.SHOTS) await b.screenshot({ path: process.env.SHOTS + '/p2p-sala.png' });
     console.log('P2P E2E OK');
   } catch (e) {

@@ -162,6 +162,70 @@
     return ids;
   }
 
+  // ---------- Clubes creados por el usuario ----------
+  /* Media del once según estrellas (1-5). */
+  G.STARS = { 1: 62, 2: 67, 3: 72, 4: 77, 5: 82 };
+  G.starsLabel = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+  /* Reputación aproximada para una media dada (para presupuesto, salarios y expectativas). */
+  G.repForLevel = (target) => U.clamp(Math.round((target - 50.5) / 0.38), 20, 95);
+  G.customId = (name) => 'mi-' + U.slug(name);
+  /* Ficha de un club nuevo a partir de lo que elige el usuario. */
+  G.customClubDef = function (o) {
+    const level = G.STARS[o.stars] || G.STARS[3];
+    const name = String(o.name || 'Mi Club').trim().slice(0, 30) || 'Mi Club';
+    const short = (String(o.short || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'MIC').slice(0, 4);
+    return { id: G.customId(name), name, short, rep: G.repForLevel(level), stadium: String(o.stadium || '').trim().slice(0, 40) || 'Estadio ' + name, colors: [o.c1 || '#1f6feb', o.c2 || '#ffffff'], custom: true, level, stars: o.stars || 3 };
+  };
+  /* Copia del dataset en la que los clubes creados ocupan la plaza de otros. customs: [{ leagueId, replaces, def }]. */
+  G.withCustomClubs = function (dataset, customs) {
+    if (!customs || !customs.length) return dataset;
+    const leagues = dataset.leagues.map((L) => {
+      const mine = customs.filter((c) => c.leagueId === L.id);
+      if (!mine.length) return L;
+      const clubs = L.clubs.map((row) => {
+        const name = Array.isArray(row) ? row[0] : row.name;
+        const id = Array.isArray(row) ? U.slug(name) : row.id || U.slug(name);
+        const c = mine.find((x) => x.replaces === id);
+        // Al menos la reputación (y por tanto el presupuesto) del club cuya plaza ocupa.
+        return c ? Object.assign({}, c.def, { rep: Math.max(c.def.rep, Array.isArray(row) ? row[2] : row.rep || 0) }) : row;
+      });
+      return Object.assign({}, L, { clubs });
+    });
+    return Object.assign({}, dataset, { leagues });
+  };
+  /* Club más flojo de una liga que no esté cogido (para dejar sitio a un club nuevo). */
+  G.weakestFree = function (dataset, leagueId, takenIds) {
+    const L = dataset.leagues.find((l) => l.id === leagueId);
+    if (!L) return null;
+    const rows = L.clubs.map((row) => (Array.isArray(row) ? { id: U.slug(row[0]), rep: row[2] } : { id: row.id || U.slug(row.name), rep: row.rep }))
+      .filter((c) => !(takenIds || []).includes(c.id)).sort((a, b) => a.rep - b.rep);
+    return rows.length ? rows[0].id : null;
+  };
+  /* Ajusta la plantilla para que el once titular tenga exactamente la media indicada. */
+  function levelSquad(players, club, target) {
+    const squad = club.squad.map((id) => players[id]);
+    for (let k = 0; k < 4; k++) {
+      const lu = MCM.lineup.autoPick(squad.map((p) => Object.assign({}, p, { fitness: 100, injury: null, suspension: 0 })), club.tactics.formation);
+      const xi = lu.xi.map((id) => players[id]).filter(Boolean);
+      const avg = xi.reduce((a, p) => a + p.ovr, 0) / Math.max(1, xi.length);
+      const delta = Math.round(target - avg);
+      if (!delta) break;
+      squad.forEach((p) => {
+        p.ovr = U.clamp(p.ovr + delta, 40, 95);
+        p.pot = U.clamp(Math.max(p.pot + delta, p.ovr), p.ovr, 97);
+        if (p.attrs) Object.keys(p.attrs).forEach((a) => { p.attrs[a] = U.clamp(p.attrs[a] + delta, 20, 99); });
+      });
+    }
+    squad.forEach((p) => { p.value = P.marketValue(p); p.wage = P.fairWage(p, club.wealth); });
+  }
+  G.levelSquad = levelSquad;
+  G.xiAverage = function (players, club) {
+    const squad = club.squad.map((id) => players[id]);
+    const lu = MCM.lineup.autoPick(squad.map((p) => Object.assign({}, p, { fitness: 100, injury: null, suspension: 0 })), club.tactics.formation);
+    const xi = lu.xi.map((id) => players[id]).filter(Boolean);
+    return Math.round(xi.reduce((a, p) => a + p.ovr, 0) / Math.max(1, xi.length));
+  };
+
   G.importSquad = importSquad;
   G.fillSquad = fillSquad;
 
@@ -186,6 +250,7 @@
         const wealth = L.wealth || 1;
         const club = {
           id,
+          custom: !!c.custom,
           name: c.name,
           short: c.short || c.name.slice(0, 3).toUpperCase(),
           leagueId: L.id,
@@ -205,6 +270,7 @@
           club.squad = importSquad(ctx, club, L, c.players);
           if (c.fill) fillSquad(ctx, club, L, club.squad);
         } else club.squad = generateSquad(ctx, club, L);
+        if (c.level) levelSquad(ctx.players, club, c.level);
         clubIds.push(id);
       });
       leagues[L.id] = {

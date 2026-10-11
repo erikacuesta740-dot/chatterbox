@@ -209,6 +209,26 @@
   const clubRow = (c) => (Array.isArray(c) ? { name: c[0], short: c[1], rep: c[2], stadium: c[3], colors: [c[4], c[5]] }
     : { name: c.name, short: c.short || c.name.slice(0, 3).toUpperCase(), rep: c.rep, stadium: c.stadium || '', colors: c.colors || ['#888888', '#ffffff'], id: c.id, players: c.players });
 
+  /* Campos para crear un club propio (se usa en la carrera normal y en el online). */
+  function customClubFields(L, opts) {
+    opts = opts || {};
+    const G = MCM.generator;
+    const rows = L.clubs.map(clubRow).map((c) => ({ id: c.id || U.slug(c.name), name: c.name, rep: c.rep })).filter((c) => !(opts.taken || []).includes(c.id)).sort((a, b) => a.rep - b.rep);
+    const stars = opts.fixedStars || 3;
+    return '<label class="field" for="cc-name">Nombre del club<input class="input" id="cc-name" name="ccName" maxlength="30" required placeholder="Por ejemplo, Atlético Pizzería"></label>' +
+      '<div class="grid-2"><label class="field" for="cc-short">Abreviatura<input class="input" id="cc-short" name="ccShort" maxlength="4" placeholder="ATP" autocapitalize="characters"></label>' +
+      '<label class="field" for="cc-stadium">Estadio<input class="input" id="cc-stadium" name="ccStadium" maxlength="40" placeholder="Estadio"></label></div>' +
+      '<div class="grid-2"><label class="field" for="cc-c1">Color principal<input class="input" id="cc-c1" name="ccC1" type="color" value="#1f6feb" style="height:44px;padding:4px"></label>' +
+      '<label class="field" for="cc-c2">Color secundario<input class="input" id="cc-c2" name="ccC2" type="color" value="#ffffff" style="height:44px;padding:4px"></label></div>' +
+      (opts.fixedStars ? '<p class="small">Nivel fijado por el creador de la sala: <b>' + G.starsLabel(stars) + '</b> (media del once ' + G.STARS[stars] + ').</p><input type="hidden" name="ccStars" value="' + stars + '">'
+        : '<label class="field" for="cc-stars">Nivel de la plantilla<select class="input" id="cc-stars" name="ccStars">' + [1, 2, 3, 4, 5].map((n) => '<option value="' + n + '"' + (n === stars ? ' selected' : '') + '>' + G.starsLabel(n) + ' · media del once ' + G.STARS[n] + '</option>').join('') + '</select></label>') +
+      (opts.noReplace ? '' : '<label class="field" for="cc-rep">Ocupa la plaza de<select class="input" id="cc-rep" name="ccReplaces">' + rows.map((c, i) => '<option value="' + esc(c.id) + '"' + (i === 0 ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select></label>') +
+      '<p class="small muted">Los jugadores del club nuevo son ficticios y se generan con esa media exacta en el once titular.</p>';
+  }
+  function customFromForm(fd, leagueId) {
+    return { leagueId, name: fd.get('ccName'), short: fd.get('ccShort'), stadium: fd.get('ccStadium'), c1: fd.get('ccC1'), c2: fd.get('ccC2'), stars: Number(fd.get('ccStars') || 3), replaces: fd.get('ccReplaces') || null };
+  }
+
   VIEWS.newCareer = function () {
     const ds = activeDataset();
     const leagues = ds.leagues;
@@ -225,6 +245,7 @@
       const html = dsChips + '<label class="field" for="nc-country">País<select class="input" id="nc-country" data-change="new-country">' +
         countries.map((c) => '<option' + (c === L.country ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></label>' +
         '<div class="chips" role="tablist">' + leagues.filter((l) => l.country === L.country).map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + esc(l.id) + '">' + esc(l.name) + '</button>').join('') + '</div>' +
+        '<button class="btn block" data-act="new-club" data-id="__custom__">' + icon('plus') + 'Crear mi propio club en ' + esc(L.name) + '</button>' +
         '<section class="card"><div class="section-head"><h2>Elige club</h2><span class="small muted">' + clubs.length + ' clubes</span></div><div class="plist">' +
         clubs.map((c) => {
           const lvl = Math.round(MCM.generator.baseOvr(c.rep) + 2);
@@ -234,6 +255,13 @@
             UI.ovr(lvl) + '</button>';
         }).join('') + '</div></section>';
       return { title: 'Nueva carrera', sub: 'Paso 1 de 2 · Liga y club', html, tabs: false };
+    }
+    if (App.ui.newClub === '__custom__') {
+      const html = '<section class="card"><h2>Crear mi club</h2><p class="small muted">Jugará en ' + esc(L.name) + ' (' + esc(L.country) + ').</p><button class="btn sm ghost" data-act="new-club-reset" style="justify-self:start">Volver a la lista de clubes</button></section>' +
+        '<form class="card stack" id="new-form" data-submit="create-career">' + customClubFields(L) +
+        '<label class="field" for="nc-manager">Nombre del entrenador<input class="input" id="nc-manager" name="manager" maxlength="40" value="' + esc(App.profile || '') + '" placeholder="Tu nombre"></label>' +
+        '<button class="btn primary block" type="submit">' + icon('play') + 'Crear club y empezar</button></form>';
+      return { title: 'Nueva carrera', sub: 'Club propio', html, tabs: false };
     }
     const club = L.clubs.map(clubRow).find((c) => (c.id || U.slug(c.name)) === App.ui.newClub);
     if (!club) { App.ui.newClub = null; return VIEWS.newCareer(); }
@@ -719,7 +747,10 @@
     'create-career': async (fd) => {
       await busy('Creando carrera…');
       try {
-        const s = C.create({ dataset: activeDataset(), clubId: App.ui.newClub, name: fd.get('name'), managerName: fd.get('manager'), owner: (MCM.cloud.ready() && MCM.cloud.name) || App.profile || 'Jugador local' });
+        const L0 = activeDataset().leagues.find((l) => l.id === App.ui.newLeague) || activeDataset().leagues[0];
+        const custom = App.ui.newClub === '__custom__' ? customFromForm(fd, L0.id) : null;
+        if (custom && !String(custom.name || '').trim()) { unbusy(); toast('Ponle un nombre a tu club'); return; }
+        const s = C.create({ dataset: activeDataset(), clubId: App.ui.newClub, custom, name: fd.get('name') || (custom ? 'Carrera con ' + custom.name : ''), managerName: fd.get('manager'), owner: (MCM.cloud.ready() && MCM.cloud.name) || App.profile || 'Jugador local' });
         App.s = s;
         await persist();
         await refreshMetas();
@@ -825,7 +856,7 @@
   App.ACTIONS = ACTIONS;
   App.FORMS = FORMS;
   App.CHANGES = CHANGES;
-  App.h = { sheet, closeSheet, confirmSheet, persist, toast, busy, unbusy, fc27Card, tableHtml, shortName, newsItem, refreshMetas, openCareer };
+  App.h = { customClubFields, customFromForm, sheet, closeSheet, confirmSheet, persist, toast, busy, unbusy, fc27Card, tableHtml, shortName, newsItem, refreshMetas, openCareer };
 
   App.start = async function () {
     bind();

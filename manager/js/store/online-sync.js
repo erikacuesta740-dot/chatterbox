@@ -20,16 +20,47 @@
   RU.me = (m, uid) => RU.players(m).find((p) => p.uid === uid) || null;
   RU.allReady = (m) => !!(m && m.status === 'playing' && RU.players(m).length >= 2 && RU.players(m).every((p) => m.ready && m.ready[p.uid] === m.rev));
   RU.maxPlayers = (m) => (m && m.maxPlayers) || 2;
-  /* Valida un jugador nuevo; devuelve un texto de error o null. */
-  RU.joinError = function (m, uid, clubId, s) {
+  let dsCache = null;
+  RU.dataset = () => (dsCache = dsCache || MCM.DATA.realDataset());
+  RU.leagueClubs = (leagueId) => {
+    const L = RU.dataset().leagues.find((l) => l.id === leagueId);
+    return L ? L.clubs.map((c) => (Array.isArray(c) ? { id: MCM.util.slug(c[0]), name: c[0], rep: c[2] } : { id: c.id || MCM.util.slug(c.name), name: c.name, rep: c.rep })) : [];
+  };
+  /* Clubes ya cogidos (y plazas ocupadas por clubes creados). */
+  RU.takenIds = (m) => [].concat(...RU.players(m).map((p) => [p.clubId].concat(p.custom ? [p.custom.replaces] : [])));
+  RU.customs = (m) => RU.players(m).filter((p) => p.custom).map((p) => p.custom);
+  /*
+   * Elección de un jugador: { clubId } (club existente) o { custom: { name, short, stadium, c1, c2 } }.
+   * Devuelve { error } o { player }.
+   */
+  RU.choose = function (m, uid, name, choice) {
     const ps = RU.players(m);
-    if (ps.some((p) => p.uid === uid)) return null;
-    if (m.status !== 'lobby') return 'La partida ya ha empezado.';
-    if (ps.length >= RU.maxPlayers(m)) return 'La sala ya está completa (' + RU.maxPlayers(m) + ' jugadores).';
-    const taken = ps.find((p) => p.clubId === clubId);
-    if (taken) return 'Ese club ya lo ha elegido ' + taken.name + '.';
-    if (!s.clubs[clubId] || s.clubs[clubId].leagueId !== m.leagueId) return 'Elige un club de ' + m.leagueName + '.';
-    return null;
+    const already = ps.find((p) => p.uid === uid);
+    if (already) return { player: already };
+    if (m.status !== 'lobby') return { error: 'La partida ya ha empezado.' };
+    if (ps.length >= RU.maxPlayers(m)) return { error: 'La sala ya está completa (' + RU.maxPlayers(m) + ' jugadores).' };
+    const taken = RU.takenIds(m);
+    const clubs = RU.leagueClubs(m.leagueId);
+    if (choice && choice.custom) {
+      const def = MCM.generator.customClubDef(Object.assign({}, choice.custom, { stars: m.customStars || 3 }));
+      if (!String(choice.custom.name || '').trim()) return { error: 'Ponle un nombre a tu club.' };
+      if (taken.includes(def.id) || clubs.some((c) => MCM.util.slug(c.name) === MCM.util.slug(def.name))) return { error: 'Ya hay un club con ese nombre.' };
+      const replaces = MCM.generator.weakestFree(RU.dataset(), m.leagueId, taken);
+      if (!replaces) return { error: 'No quedan plazas en la liga.' };
+      return { player: { uid, name, clubId: def.id, club: def.name, custom: { leagueId: m.leagueId, replaces, def } } };
+    }
+    const clubId = choice && choice.clubId;
+    const c = clubs.find((x) => x.id === clubId);
+    if (!c) return { error: 'Elige un club de ' + m.leagueName + '.' };
+    const owner = ps.find((p) => p.clubId === clubId || (p.custom && p.custom.replaces === clubId));
+    if (owner) return { error: owner.custom ? 'Ese club ya no está: su plaza la ocupa ' + owner.club + '.' : 'Ese club ya lo ha elegido ' + owner.name + '.' };
+    return { player: { uid, name, clubId, club: c.name } };
+  };
+  /* Mundo de la temporada inicial con todos los jugadores (y sus clubes creados). */
+  RU.buildWorld = function (m) {
+    const s = MCM.online.createWorld({ leagueId: m.leagueId, clubId: m.host.clubId, seed: m.seed || 'room-' + m.code, code: m.code, customs: RU.customs(m) });
+    RU.players(m).forEach((p) => MCM.online.addHuman(s, p.clubId));
+    return s;
   };
   RU.lastResults = (res) => (res.results || []).slice(0, 30);
 
@@ -86,33 +117,39 @@
   R.loadWorld = async function (meta) {
     const s = await readState(meta);
     const me = R.uid();
-    const mine = RU.me(meta, me);
-    if (mine) s.clubId = mine.clubId;
     s.online = Object.assign({}, s.online || {}, { code: meta.code, rev: meta.rev });
+    const mine = RU.me(meta, me);
+    if (mine) MCM.online.viewAs(s, mine.clubId);
     s.id = 'online-' + meta.code;
     return s;
   };
 
   // ---- salas ----
-  R.create = async function (leagueId, clubId) {
+  /* choice: { clubId } o { custom }; stars: nivel de los clubes creados en la sala. */
+  R.create = async function (leagueId, choice, stars) {
     const uid = R.uid();
     let code = newCode();
     for (let i = 0; i < 5 && (await R.get(code)); i++) code = newCode();
-    const s = MCM.online.createWorld({ leagueId, clubId, seed: 'room-' + code + '-' + Date.now(), code, name: R.myName() });
-    const st = await writeState(code, 1, s);
-    const L = s.leagues[leagueId];
-    const host = { uid, name: R.myName(), clubId, club: s.clubs[clubId].name };
+    const L0 = RU.dataset().leagues.find((l) => l.id === leagueId);
     const meta = {
-      code, rev: 1, chunks: st.chunks, enc: st.enc, status: 'lobby', leagueId, leagueName: L.name, country: L.country,
-      host, players: [host], uids: [uid], maxPlayers: Math.min(RU.MAX, L.clubIds.length), hostUid: uid,
-      ready: {}, last: null, season: s.season.label, date: s.date, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      code, rev: 1, status: 'lobby', leagueId, leagueName: L0.name, country: L0.country, customStars: stars || 3, seed: 'room-' + code + '-' + Date.now(),
+      players: [], uids: [], maxPlayers: Math.min(RU.MAX, L0.clubs.length), hostUid: uid,
+      ready: {}, last: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
+    const c = RU.choose(meta, uid, R.myName(), choice);
+    if (c.error) throw new Error(c.error);
+    meta.host = c.player;
+    meta.players = [c.player];
+    meta.uids = [uid];
+    const s = RU.buildWorld(meta);
+    const st = await writeState(code, 1, s);
+    Object.assign(meta, { chunks: st.chunks, enc: st.enc, season: s.season.label, date: s.date });
     await retry(() => roomRef(code).set(meta));
     return meta;
   };
 
   /* Ocupar el hueco de invitado (con bloqueo corto para que no entren dos a la vez). */
-  R.join = async function (code, clubId) {
+  R.join = async function (code, choice) {
     code = R.normalize(code);
     const uid = R.uid();
     // Bloqueo corto para que dos no cojan el mismo club a la vez (se reintenta si otro está entrando).
@@ -125,10 +162,9 @@
     const meta = await R.get(code);
     if (!meta) throw new Error('No existe ninguna sala con el código ' + code + '.');
     if (RU.me(meta, uid)) return meta;
-    const s = await readState(meta);
-    const err = RU.joinError(meta, uid, clubId, s);
-    if (err) throw new Error(err);
-    const players = RU.players(meta).concat([{ uid, name: R.myName(), clubId, club: s.clubs[clubId].name }]);
+    const c = RU.choose(meta, uid, R.myName(), choice);
+    if (c.error) throw new Error(c.error);
+    const players = RU.players(meta).concat([c.player]);
     await retry(() => roomRef(code).update({ players, uids: players.map((p) => p.uid), updatedAt: new Date().toISOString() }));
     return R.get(code);
   };
@@ -137,8 +173,7 @@
   R.start = async function (meta) {
     if (meta.host.uid !== R.uid()) throw new Error('Solo quien creó la sala puede empezar.');
     if (RU.players(meta).length < 2) throw new Error('Falta al menos un amigo.');
-    const s = await readState(meta);
-    RU.players(meta).forEach((p) => MCM.online.addHuman(s, p.clubId));
+    const s = RU.buildWorld(meta);
     const rev = meta.rev + 1;
     const st = await writeState(meta.code, rev, s);
     await retry(() => roomRef(meta.code).update({ rev, chunks: st.chunks, enc: st.enc, status: 'playing', updatedAt: new Date().toISOString() }));
@@ -169,12 +204,14 @@
     meta = await R.get(code);
     if (!R.bothReady(meta)) return { stepped: false };
     const s = await readState(meta);
+    s.online = Object.assign({}, s.online || {}, { code, rev: meta.rev });
+    MCM.online.viewAs(s, (RU.me(meta, R.uid()) || meta.host).clubId);
     for (const u of RU.players(meta)) {
       const o = await retry(() => ordersRef(code, u.uid).get());
       if (o.exists) MCM.online.applyOrders(s, o.data());
     }
-    s.clubId = (RU.me(meta, R.uid()) || meta.host).clubId;
     const res = MCM.online.step(s);
+    MCM.online.viewAs(s, s.clubId);
     const rev = meta.rev + 1;
     const st = await writeState(code, rev, s);
     await retry(() => roomRef(code).update({

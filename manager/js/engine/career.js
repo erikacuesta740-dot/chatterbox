@@ -19,6 +19,24 @@
   C.userClub = (s) => s.clubs[s.clubId];
   /* Clubes dirigidos por personas: el tuyo y, en el modo online, el de tu amigo. */
   C.isHuman = (s, id) => id === s.clubId || !!(s.humans && s.humans.includes(id));
+  /*
+   * Modo online: cada club humano tiene su propio mercado y noticias (s.users[club]). asUser ejecuta fn
+   * como si ese club fuera «el usuario» (s.clubId, s.market y s.news) y luego lo deja todo como estaba.
+   */
+  C.asUser = function (s, clubId, fn) {
+    if (!s.users || clubId === s.clubId) return fn();
+    const prev = { clubId: s.clubId, market: s.market, news: s.news };
+    if (s.users[prev.clubId]) { s.users[prev.clubId].market = s.market; s.users[prev.clubId].news = s.news; }
+    const u = (s.users[clubId] = s.users[clubId] || { market: null, news: [] });
+    s.clubId = clubId;
+    s.market = u.market;
+    s.news = u.news;
+    if (!s.market) { s.market = null; MCM.market.init(s); u.market = s.market; }
+    try { return fn(); } finally {
+      u.market = s.market; u.news = s.news;
+      s.clubId = prev.clubId; s.market = prev.market; s.news = prev.news;
+    }
+  };
   C.userLeague = (s) => s.leagues[s.clubs[s.clubId].leagueId];
   C.squad = (s, clubId) => s.clubs[clubId].squad.map((id) => s.players[id]).filter(Boolean);
   C.nameOf = (s, pid) => (s.players[pid] ? s.players[pid].name : '—');
@@ -152,7 +170,14 @@
   }
 
   C.create = function (opts) {
-    const dataset = opts.dataset || MCM.generator.defaultDataset();
+    let dataset = opts.dataset || MCM.generator.defaultDataset();
+    // Club creado por el usuario: ocupa la plaza de otro club de la liga.
+    if (opts.custom) {
+      const def = MCM.generator.customClubDef(opts.custom);
+      const replaces = opts.custom.replaces || MCM.generator.weakestFree(dataset, opts.custom.leagueId, []);
+      dataset = MCM.generator.withCustomClubs(dataset, [{ leagueId: opts.custom.leagueId, replaces, def }]);
+      opts = Object.assign({}, opts, { clubId: def.id, dataset });
+    }
     const seed = opts.seed || U.uid('seed');
     const year = opts.startYear || C.START_YEAR;
     const world = MCM.generator.buildWorld(dataset, seed, year);
@@ -397,7 +422,8 @@
     const nameOf = (id) => C.nameOf(s, id);
     if (isLeague && f.comp === C.userClub(s).leagueId) f.goals = res.events.filter((e) => e.type === 'goal').map((e) => [e.min, e.side, nameOf(e.pid)]);
     if (isUserMatch) {
-      if (f.home === s.clubId && !f.neutral && s.market) s.market.fin.income.tickets += Math.round(MCM.market.ticketIncome(C.userClub(s)) * (isLeague ? 1 : s.comps[f.comp].type === 'euro' ? 1.4 : 0.6));
+      const homeMarket = f.home === s.clubId ? s.market : s.users && s.users[f.home] ? s.users[f.home].market : null;
+      if (homeMarket && !f.neutral) homeMarket.fin.income.tickets += Math.round(MCM.market.ticketIncome(s.clubs[f.home]) * (isLeague ? 1 : s.comps[f.comp].type === 'euro' ? 1.4 : 0.6));
       f.report = {
         summary: MCM.match.summary(res, home.club.name, away.club.name, nameOf, rng),
         stats: res.stats,
@@ -788,6 +814,17 @@
 
     // Economía de la temporada, cesiones que vuelven y contratos del usuario que vencen
     const finRes = s.online ? { net: 0 } : MCM.market.closeSeason(s, myRow.pos, tables[userL.id].length, objectiveMet);
+    // Online: cierre económico de cada jugador con su propia clasificación y objetivo.
+    const onlineFin = {};
+    if (s.online && s.users) {
+      (s.humans || []).forEach((id) => {
+        const club = s.clubs[id];
+        const row = tables[club.leagueId] && tables[club.leagueId].find((r) => r.clubId === id);
+        if (!row) return;
+        const met = club.objective ? row.pos <= club.objective.target : false;
+        onlineFin[id] = { met, res: C.asUser(s, id, () => MCM.market.closeSeason(s, row.pos, tables[club.leagueId].length, met)) };
+      });
+    }
     if (s.online) MCM.market.returnLoans(s); else MCM.market.endOfSeasonContracts(s);
 
     // Evolución, edad, contratos y retiradas
@@ -907,6 +944,8 @@
     if (!s.online) {
       MCM.market.newSeasonBudgets(s, objectiveMet, finRes.net);
       MCM.dev.endSeason(s, objectiveMet);
+    } else {
+      Object.keys(onlineFin).forEach((id) => C.asUser(s, id, () => MCM.market.newSeasonBudgets(s, onlineFin[id].met, onlineFin[id].res.net)));
     }
     const retiredMine = retired.filter((p) => p.clubId === s.clubId);
     if (retiredMine.length) C.news(s, 'contract', 'Retiradas', retiredMine.map((p) => p.name).join(', ') + ' se retira' + (retiredMine.length > 1 ? 'n' : '') + ' del fútbol profesional.');

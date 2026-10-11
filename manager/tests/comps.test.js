@@ -238,3 +238,56 @@ test('modo online: dos clubes humanos, órdenes, jornadas y cambio de temporada'
   assert.ok(!C.seasonFinished(s));
   assert.deepStrictEqual(C.validate(s), []);
 });
+
+test('modo online: clubes creados con las estrellas de la sala y fichajes que viajan en las órdenes', () => {
+  const O = MCM.online;
+  const G = MCM.generator;
+  const T = MCM.market;
+  const ds = MCM.DATA.realDataset();
+  const def1 = G.customClubDef({ name: 'Atlético Pizzería', short: 'ATP', stars: 4 });
+  const r1 = G.weakestFree(ds, 'ESP1', []);
+  const def2 = G.customClubDef({ name: 'Real Amigos', short: 'RAM', stars: 4 });
+  const r2 = G.weakestFree(ds, 'ESP1', [r1]);
+  const customs = [{ leagueId: 'ESP1', replaces: r1, def: def1 }, { leagueId: 'ESP1', replaces: r2, def: def2 }];
+  const s = O.createWorld({ leagueId: 'ESP1', clubId: def1.id, seed: 'on2', code: 'TEST2', customs });
+  O.addHuman(s, def2.id);
+  assert.ok(!s.clubs[r1] && !s.clubs[r2], 'los clubes creados ocupan plazas');
+  [def1.id, def2.id].forEach((id) => {
+    const avg = G.xiAverage(s.players, s.clubs[id]);
+    assert.ok(Math.abs(avg - G.STARS[4]) <= 1, 'media del once ' + avg);
+  });
+  // El amigo (def2) ficha desde su móvil: se hace en su copia y viaja como acciones en las órdenes.
+  const phone = JSON.parse(JSON.stringify(s));
+  O.viewAs(phone, def2.id);
+  phone.online.rev = 5;
+  const actions = [];
+  const log = (fn, ...args) => { actions.push({ fn, args: JSON.parse(JSON.stringify(args)) }); return T[fn](phone, ...args); };
+  const target = C.squad(phone, 'getafe-cf').filter((p) => !p.loan).sort((a, b) => a.value - b.value)[3];
+  phone.date = phone.season.year + '-07-15';
+  const st = log('start', target.id, 'buy');
+  assert.ok(st.talk, JSON.stringify(st));
+  assert.strictEqual(log('offerClub', target.id, st.talk.asking).status, 'accepted');
+  assert.strictEqual(log('offerContract', target.id, st.talk.demand).status, 'done');
+  assert.strictEqual(phone.players[target.id].clubId, def2.id);
+  const orders = O.extractOrders(phone, def2.id, actions);
+  // Quien avanza (def1) aplica las órdenes en el mundo compartido.
+  s.online.rev = 5;
+  s.date = phone.date;
+  const budget1 = s.clubs[def1.id].budget;
+  O.applyOrders(s, orders);
+  assert.strictEqual(s.clubId, def1.id);
+  assert.strictEqual(s.players[target.id].clubId, def2.id, 'el fichaje del amigo se aplica');
+  assert.strictEqual(s.clubs[def2.id].budget, phone.clubs[def2.id].budget, 'mismo presupuesto que en su móvil');
+  assert.strictEqual(s.clubs[def1.id].budget, budget1);
+  // Órdenes de una jornada anterior no repiten operaciones.
+  const again = O.extractOrders(phone, def2.id, [{ fn: 'release', args: [target.id] }]);
+  again.baseRev = 4;
+  O.applyOrders(s, again);
+  assert.strictEqual(s.players[target.id].clubId, def2.id);
+  O.viewAs(s, def2.id);
+  assert.strictEqual(s.clubId, def2.id);
+  assert.ok(s.market && s.users[def1.id].market && s.users[def1.id].market !== s.market, 'cada humano tiene su mercado');
+  O.viewAs(s, def1.id);
+  for (let i = 0; i < 6; i++) O.step(s);
+  assert.deepStrictEqual(C.validate(s), []);
+});
