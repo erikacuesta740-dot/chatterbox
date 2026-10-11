@@ -3,7 +3,8 @@
   'use strict';
   const S = (MCM.schedule = {});
 
-  S.roundRobin = function (clubIds, rng) {
+  /* Liga a doble vuelta (o a una sola vuelta si single). */
+  S.roundRobin = function (clubIds, rng, single) {
     const teams = rng ? rng.shuffle(clubIds) : clubIds.slice();
     if (teams.length % 2) teams.push(null); // descanso si hay número impar
     const n = teams.length;
@@ -26,6 +27,7 @@
     const fixtures = [];
     let id = 0;
     firstLeg.forEach((md, r) => md.forEach(([h, a]) => fixtures.push({ id: 'f' + id++, md: r + 1, home: h, away: a, played: false })));
+    if (single) return { fixtures, totalMd: rounds };
     firstLeg.forEach((md, r) => md.forEach(([h, a]) => fixtures.push({ id: 'f' + id++, md: rounds + r + 1, home: a, away: h, played: false })));
     return { fixtures, totalMd: rounds * 2 };
   };

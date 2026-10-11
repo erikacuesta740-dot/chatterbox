@@ -125,7 +125,7 @@
   function setupSeason(s, prevTables, cupWinners) {
     const rng = U.rng(s.seed + ':sched:' + s.season.year);
     Object.values(s.leagues).forEach((L) => {
-      const r = SC.roundRobin(L.clubIds, rng);
+      const r = SC.roundRobin(L.clubIds, rng, !!L.singleRound);
       L.fixtures = r.fixtures;
       L.totalMd = r.totalMd;
       L.played = 0;

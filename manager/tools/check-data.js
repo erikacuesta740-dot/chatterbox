@@ -26,7 +26,7 @@ MCM.DATA.leagues.forEach((L) => {
   if (only.length && !only.includes(L.id)) return;
   ['id', 'name', 'country', 'nat', 'tier'].forEach((k) => { if (L[k] == null) err(L.id + ': falta ' + k); });
   if (!MCM.DATA.nations[L.nat]) err(L.id + ': nacionalidad de liga desconocida ' + L.nat);
-  if (L.clubs.length < 8 || L.clubs.length % 2) err(L.id + ': número de clubes raro (' + L.clubs.length + ')');
+  if (L.clubs.length < 8) err(L.id + ': número de clubes raro (' + L.clubs.length + ')');
   if (L.upper && !MCM.DATA.leagues.some((x) => x.id === L.upper)) err(L.id + ': liga superior inexistente ' + L.upper);
   let real = 0;
   L.clubs.forEach((row) => {

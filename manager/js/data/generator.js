@@ -16,7 +16,7 @@
 
   G.baseOvr = (rep) => 48 + rep * 0.38;
   // Reglas de liga opcionales que se copian a la partida (y se actualizan en partidas antiguas).
-  G.LEAGUE_RULES = ['playoff', 'playoffFrom', 'uefa', 'spots', 'region'];
+  G.LEAGUE_RULES = ['playoff', 'playoffFrom', 'uefa', 'spots', 'region', 'singleRound'];
 
   function pickNation(rng, leagueNat) {
     if (rng.chance(0.55)) return leagueNat;
