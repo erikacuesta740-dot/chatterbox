@@ -830,6 +830,7 @@
   App.start = async function () {
     bind();
     await MCM.store.init();
+    if (MCM.p2p) await MCM.p2p.init().catch(() => {});
     try {
       App.profile = (await MCM.store.getSetting('profile')) || '';
       App.theme = (await MCM.store.getSetting('theme')) || 'system';

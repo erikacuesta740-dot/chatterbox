@@ -5,7 +5,9 @@
   const UI = MCM.ui;
   const C = MCM.career;
   const SC = MCM.schedule;
-  const R = MCM.rooms;
+  // Salas de claude.ai si hay base de datos; si no (app Android, web propia), conexión directa entre móviles.
+  const R = new Proxy({}, { get: (_, k) => ((MCM.cloud && MCM.cloud.ready()) || !MCM.p2p || !MCM.p2p.available() ? MCM.rooms : MCM.p2p)[k] });
+  const isP2P = () => !(MCM.cloud && MCM.cloud.ready()) && MCM.p2p && MCM.p2p.available();
   const O = MCM.online;
   const App = MCM.app;
   const V = App.VIEWS;
@@ -23,7 +25,7 @@
     return '<section class="card stack"><h3>Jugar online con un amigo</h3>' +
       '<p class="small">' + esc(c.reason || 'El modo online necesita abrir el juego dentro de claude.ai con tu cuenta.') + '</p>' +
       '<p class="small muted">Para jugar contra un amigo: abrid los dos el juego en claude.ai con vuestra cuenta. El propietario del juego debe invitar a su amigo por correo como <b>Editor</b> (Compartir) y no tener activado el enlace público, porque con enlace público los invitados de fuera solo pueden mirar.</p>' +
-      '<p class="small muted">No funciona en la app de Android ni sin conexión: las salas se guardan en la base de datos de claude.ai.</p></section>';
+      '<p class="small muted">Necesitas conexión a internet.</p></section>';
   }
 
   // ---------- Inicio online ----------
@@ -34,6 +36,8 @@
       R.mine().then((r) => { st.rooms = r; }).catch(() => { st.rooms = []; }).finally(() => { st.loading = false; if (App.view === 'online') App.render(); });
     }
     let html = '<section class="card stack"><h3>Carrera contra un amigo</h3><p class="small muted">Uno crea la sala y elige la liga; el otro entra con el código. Cada uno elige su club y dirige su once y su táctica desde su móvil. La temporada avanza cuando los dos pulsáis «Listo».</p>' +
+      (isP2P() ? '<form class="row" data-submit="on-name" style="gap:8px;align-items:flex-end"><label class="field grow" for="on-name">Tu nombre<input class="input" id="on-name" name="name" maxlength="24" value="' + esc(MCM.p2p.myName()) + '"></label><button class="btn sm" type="submit">Guardar</button></form>' +
+        '<p class="small muted">Conexión directa entre los dos móviles, sin cuentas. Para jugar jornadas tenéis que tener la sala abierta los dos a la vez. La partida se guarda en los dos móviles.</p>' : '') +
       '<button class="btn primary block" data-act="nav" data-view="onlineCreate">Crear sala</button>' +
       '<form class="stack" data-submit="on-code"><label class="field" for="on-code">Código de sala<input class="input" id="on-code" name="code" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Por ejemplo, K7QMX"></label><button class="btn block" type="submit">Unirme con código</button></form></section>';
     html += '<section class="card"><div class="section-head"><h3>Mis salas</h3><button class="btn ghost sm" data-act="on-refresh">Actualizar</button></div>' +
@@ -46,13 +50,14 @@
     return { title: 'Online', sub: 'Contra un amigo', html, tabs: false };
   };
   A['on-refresh'] = () => { st.rooms = null; App.render(); };
+  F['on-name'] = async (fd) => { await MCM.p2p.setName(fd.get('name')); H.toast('Nombre guardado'); App.render(); };
   F['on-code'] = async (fd) => {
     const code = R.normalize(fd.get('code'));
     if (code.length < 4) { H.toast('Escribe el código de la sala'); return; }
-    await H.busy('Buscando la sala…');
+    await H.busy(isP2P() ? 'Conectando con la sala… (el creador tiene que tenerla abierta)' : 'Buscando la sala…');
     try {
       const meta = await R.get(code);
-      if (!meta) { H.toast('No existe ninguna sala con ese código'); return; }
+      if (!meta) { H.toast(isP2P() ? 'No se encuentra la sala: revisa el código y que tu amigo la tenga abierta' : 'No existe ninguna sala con ese código'); return; }
       if (meta.host.uid === R.uid() || (meta.guest && meta.guest.uid === R.uid())) { openRoom(code); return; }
       if (meta.guest) { H.toast('La sala ya está completa'); return; }
       st.join = meta;
@@ -156,7 +161,7 @@
     if (m.status === 'lobby') {
       const isHost = m.host.uid === R.uid();
       const html = '<section class="card stack" style="text-align:center"><span class="eyebrow">Código de la sala</span><h1 style="letter-spacing:.2em;font-size:40px">' + esc(m.code) + '</h1>' +
-        '<p class="small muted">Pásaselo a tu amigo: entra en «Jugar online», escribe el código y elige su club de ' + esc(m.leagueName) + '.</p></section>' +
+        '<p class="small muted">Pásaselo a tu amigo: entra en «Jugar online», escribe el código y elige su club de ' + esc(m.leagueName) + '.' + (isP2P() ? ' Deja esta pantalla abierta mientras se une.' : '') + '</p></section>' +
         '<section class="card stack small"><div class="row"><b class="grow">' + esc(m.host.name) + '</b><span>' + esc(m.host.club) + '</span></div>' +
         '<div class="row"><b class="grow">' + esc(m.guest ? m.guest.name : 'Esperando a tu amigo…') + '</b><span>' + esc(m.guest ? m.guest.club : '') + '</span></div></section>' +
         (isHost ? (m.guest ? '<button class="btn primary block" data-act="on-start">Empezar la temporada</button>' : '') + '<button class="btn ghost block" data-act="on-cancel">Cerrar la sala</button>'
@@ -168,6 +173,8 @@
     const myClub = s.clubs[s.clubId];
     const rivalClub = rival ? s.clubs[rival.clubId] : null;
     const imReady = m.ready && m.ready[R.uid()] === m.rev;
+    const net = isP2P() ? MCM.p2p.status(m.code) : null;
+    const netPill = net ? '<p class="small"><span class="pill ' + (net.connected ? 'good' : 'warn') + '">' + (net.connected ? 'Conectado con ' + esc(rival ? rival.name : 'tu amigo') : esc(rival ? rival.name : 'Tu amigo') + ' no está conectado: pídele que abra la sala') + '</span></p>' : '';
     const heReady = rival && m.ready && m.ready[rival.uid] === m.rev;
     const finished = C.seasonFinished(s);
     const next = C.nextUserFixture(s);
@@ -178,7 +185,7 @@
       const opp = s.clubs[next.home === s.clubId ? next.away : next.home];
       html += '<p class="small">Tu próximo partido: <b>' + esc(opp.name) + '</b> (' + (next.home === s.clubId ? 'local' : 'visitante') + ') · ' + esc(MCM.comps.compName(s, next.comp)) + ' · ' + esc(U.dateLabel(next.date)) + '</p>';
     } else html += '<p class="small">No te quedan partidos; tu amigo sí.</p>';
-    html += '<div class="row small" style="gap:12px;margin:6px 0"><span class="pill ' + (imReady ? 'good' : 'mute') + '">Tú: ' + (imReady ? 'listo' : 'pensando') + '</span><span class="pill ' + (heReady ? 'good' : 'mute') + '">' + esc(rival ? rival.name : 'Rival') + ': ' + (heReady ? 'listo' : 'pensando') + '</span></div>' +
+    html += netPill + '<div class="row small" style="gap:12px;margin:6px 0"><span class="pill ' + (imReady ? 'good' : 'mute') + '">Tú: ' + (imReady ? 'listo' : 'pensando') + '</span><span class="pill ' + (heReady ? 'good' : 'mute') + '">' + esc(rival ? rival.name : 'Rival') + ': ' + (heReady ? 'listo' : 'pensando') + '</span></div>' +
       (imReady ? '<button class="btn block" data-act="on-unready">Esperando a ' + esc(rival ? rival.name : 'tu amigo') + '… (quitar «Listo»)</button>'
         : '<button class="btn primary block" data-act="on-ready">' + (finished ? 'Listo para la nueva temporada' : 'Listo: jugar la jornada') + '</button>') +
       '<div class="btn-row" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="tactics">Tácticas y once</button><button class="btn sm" data-act="tab" data-view="squad">Plantilla</button><button class="btn sm" data-act="tab" data-view="table">Torneos</button></div></section>';
