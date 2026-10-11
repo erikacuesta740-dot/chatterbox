@@ -167,6 +167,13 @@
 
   // ---------- Negociaciones ----------
   T.talkFor = (s, pid) => s.market.talks[pid] || null;
+  /* Online: dueño humano (otro jugador de la sala) de un jugador, o null. */
+  T.humanOwner = (s, p) => (p && p.clubId && p.clubId !== s.clubId && s.humans && C().isHuman(s, p.clubId) ? p.clubId : null);
+  /* Mercado y noticias de otro club humano (online). */
+  const userMarket = (s, clubId) => C().asUser(s, clubId, () => s.market);
+  const newsTo = (s, clubId, type, title, body, extra) => C().asUser(s, clubId, () => C().news(s, type, title, body, extra));
+  /* Cláusula de rescisión recomendada (el doble del valor de referencia). */
+  T.clauseHint = (s, p) => roundMoney(T.reference(s, p).value * 2);
 
   T.canApproach = function (s, p) {
     if (!p) return 'Jugador no encontrado.';
@@ -191,11 +198,15 @@
     }
     if (kind === 'free' && p.clubId) return { error: 'No es agente libre.' };
     if ((kind === 'buy' || kind === 'loan' || kind === 'free') && !T.willingness(s, p).ok) return { error: T.willingness(s, p).reason };
+    const owner = T.humanOwner(s, p);
+    if (owner && kind === 'loan') return { error: 'A los clubes de tus amigos solo puedes hacerles ofertas de traspaso.' };
     const talk = {
       pid, kind, stage: kind === 'free' || kind === 'renew' ? 'player' : 'club', patience: 3, rounds: [],
       asking: p.clubId && kind !== 'renew' ? T.askingPrice(s, p) : 0, fee: 0, wageShare: kind === 'loan' ? 50 : 0,
       demand: T.contractDemand(s, p, kind), season: s.season.label,
     };
+    if (owner) talk.human = owner;
+    if (kind === 'buy' && p.clause > 0) { talk.clause = p.clause; if (!owner) talk.asking = Math.min(talk.asking, p.clause); }
     if (kind === 'loan') {
       const role = T.role(s, p);
       if (role === 'clave') return { error: s.clubs[p.clubId].name + ' no cede a un jugador clave.' };
@@ -207,7 +218,14 @@
     return { talk };
   };
 
-  T.cancel = function (s, pid) { delete s.market.talks[pid]; };
+  T.cancel = function (s, pid) {
+    const t = s.market.talks[pid];
+    if (t && t.offerId && t.human && s.clubs[t.human]) {
+      const o = (userMarket(s, t.human).offers || []).find((x) => x.id === t.offerId);
+      if (o && (o.status === 'pending' || o.status === 'countered')) o.status = 'withdrawn';
+    }
+    delete s.market.talks[pid];
+  };
 
   function rngFor(s, talk, step) { return U.rng(s.seed + ':talk:' + talk.pid + ':' + talk.kind + ':' + s.season.label + ':' + step); }
 
@@ -270,6 +288,37 @@
     const ask = talk.asking;
     const round = { by: 'tú', fee };
     talk.rounds.push(round);
+    // Cláusula de rescisión: si la pagas, el club no puede negarse.
+    if (p.clause > 0 && fee >= p.clause) {
+      talk.fee = p.clause;
+      round.fee = p.clause;
+      talk.stage = 'player';
+      talk.rounds.push({ by: 'club', text: 'Pagas la cláusula de rescisión (' + U.money(p.clause) + '): el club no puede negarse. Ahora negocia el contrato con el jugador.' });
+      return { status: 'accepted', clause: true };
+    }
+    // Jugador de un amigo: decide su dueño desde su móvil.
+    if (talk.human) {
+      const seller = talk.human;
+      if (p.clubId !== seller) { talk.stage = 'failed'; talk.rounds.push({ by: 'club', text: 'El jugador ya no está en ese club.' }); return { status: 'rejected' }; }
+      if (talk.humanAsk && fee >= talk.humanAsk) {
+        talk.fee = fee;
+        talk.stage = 'player';
+        talk.rounds.push({ by: 'club', text: 'Es lo que pedía ' + s.clubs[seller].name + ': trato hecho. Ahora negocia el contrato con el jugador.' });
+        return { status: 'accepted' };
+      }
+      const sm = userMarket(s, seller);
+      const md = s.week || 0;
+      sm.offers.forEach((o) => { if (o.pid === pid && o.clubId === s.clubId && (o.status === 'pending' || o.status === 'countered')) o.status = 'withdrawn'; });
+      const id = 'h-' + s.clubId + '-' + pid + '-' + s.season.label + '-' + talk.rounds.length;
+      sm.offers.unshift({ id, pid, clubId: s.clubId, type: 'buy', fee, human: true, status: 'pending', md, expiresMd: md + 3 });
+      if (sm.offers.length > 60) sm.offers.length = 60;
+      newsTo(s, seller, 'offer', 'Oferta de ' + s.clubs[s.clubId].name + ' por ' + p.name, s.clubs[s.clubId].name + ' (un amigo de la sala) ofrece ' + U.money(fee) + ' por ' + p.name + '. Tú decides: acepta, pide más o recházala.', { pid });
+      talk.fee = fee;
+      talk.offerId = id;
+      talk.stage = 'waiting';
+      talk.rounds.push({ by: 'club', text: 'Oferta enviada a ' + s.clubs[seller].name + '. Su dueño responderá desde su móvil (se verá al jugar la jornada).' });
+      return { status: 'sent' };
+    }
     if (fee >= ask) {
       talk.fee = fee;
       talk.stage = 'player';
@@ -294,15 +343,18 @@
     const talk = T.talkFor(s, pid);
     const p = s.players[pid];
     if (!talk || talk.stage !== 'player') return { error: 'No hay una negociación de contrato en curso.' };
-    offer = { wage: Math.max(0, Math.round(offer.wage)), years: U.clamp(Math.round(offer.years), 1, 5), bonus: Math.max(0, Math.round(offer.bonus || 0)) };
+    offer = { wage: Math.max(0, Math.round(offer.wage)), years: U.clamp(Math.round(offer.years), 1, 5), bonus: Math.max(0, Math.round(offer.bonus || 0)), clause: Math.max(0, Math.round(offer.clause || 0)) };
+    if (talk.human && p.clubId !== talk.human) { talk.stage = 'failed'; talk.rounds.push({ by: 'club', text: 'El jugador ya no está en ese club.' }); return { status: 'rejected' }; }
     if (talk.kind === 'loan') offer.years = 1;
     const d = talk.demand;
     const myWage = talk.kind === 'loan' ? Math.round(p.wage * talk.wageShare / 100) : offer.wage;
     const cost = talk.fee + (talk.kind === 'loan' ? 0 : offer.bonus);
     const errs = T.checkDeal(s, p, cost, myWage, { renew: talk.kind === 'renew' });
     if (errs.length) return { error: errs.join(' ') };
-    const score = talk.kind === 'loan' ? 1 : T.scoreContract(d, offer);
-    talk.rounds.push({ by: 'tú', wage: offer.wage, years: offer.years, bonus: offer.bonus });
+    // A los jugadores les gusta tener una cláusula (una puerta de salida); cuanto más baja, más.
+    const clauseF = offer.clause > 0 ? (offer.clause <= T.clauseHint(s, p) ? 0.03 : 0.015) : 0;
+    const score = talk.kind === 'loan' ? 1 : T.scoreContract(d, offer) + clauseF;
+    talk.rounds.push({ by: 'tú', wage: offer.wage, years: offer.years, bonus: offer.bonus, clause: offer.clause || null });
     if (score >= 0.98) return complete(s, talk, offer);
     talk.patience--;
     if (score < 0.75 || talk.patience <= 0) {
@@ -347,6 +399,7 @@
     if (talk.kind === 'renew') {
       p.wage = offer.wage;
       p.contractEnd = s.season.year + 1 + offer.years;
+      p.clause = offer.clause || 0;
       club.budget -= offer.bonus;
       fin.expense.bonuses += offer.bonus;
       p.morale = U.clamp(p.morale + 8, 0, 100);
@@ -368,7 +421,21 @@
     } else {
       if (from) { s.clubs[from].budget += talk.fee; }
       C().movePlayer(s, p, s.clubId);
+      // Venta de un amigo: se anota en sus cuentas y se le avisa.
+      if (from && from !== s.clubId && s.humans && C().isHuman(s, from)) {
+        const me = s.clubs[s.clubId].name;
+        const buyerId = s.clubId;
+        C().asUser(s, from, () => {
+          s.market.fin.income.sales += talk.fee;
+          ledger(s, 'Venta de ' + p.name, talk.fee, 'sale');
+          record(s, 'sell', p, from, buyerId, talk.fee);
+          const fc = s.clubs[from];
+          if (fc.lineup) MCM.lineup.repair(fc.lineup, C().squad(s, from));
+          C().news(s, 'transfer', 'Venta: ' + p.name, p.name + ' se marcha a ' + me + ' por ' + U.money(talk.fee) + '.', { pid: p.id });
+        });
+      }
       p.loan = null;
+      p.clause = offer.clause || 0;
       p.wage = offer.wage;
       p.contractEnd = s.season.year + offer.years;
       p.listed = false;
@@ -444,6 +511,7 @@
     } else {
       C().movePlayer(s, p, buyerId);
       p.loan = null;
+      p.clause = 0;
       p.listed = false;
       p.wage = PL.fairWage(p, buyer.wealth);
       p.contractEnd = s.season.year + T.preferredYears(p);
@@ -464,6 +532,7 @@
     if (!o || o.status !== 'pending') return { error: 'La oferta ya no está disponible.' };
     const p = s.players[o.pid];
     if (!p || p.clubId !== s.clubId) { o.status = 'expired'; return { error: 'El jugador ya no está en tu plantilla.' }; }
+    if (o.human) return respondHuman(s, o, p, action, amount);
     if (action === 'reject') {
       o.status = 'rejected';
       if (T.role(s, p) === 'clave' && p.age >= 24 && T.reference(s, p).value > 0) p.morale = U.clamp(p.morale - 4, 0, 100);
@@ -493,6 +562,43 @@
     }
     return { error: 'Acción no válida.' };
   };
+
+  /* Oferta de un amigo de la sala: el dueño acepta, pide más o rechaza; el comprador cierra luego el contrato con el jugador. */
+  function respondHuman(s, o, p, action, amount) {
+    const buyer = o.clubId;
+    const bm = userMarket(s, buyer);
+    const talk = bm.talks[o.pid];
+    const linked = talk && talk.offerId === o.id;
+    const me = s.clubs[s.clubId].name;
+    if (action === 'reject') {
+      o.status = 'rejected';
+      if (linked) { talk.stage = 'failed'; talk.rounds.push({ by: 'club', text: me + ' rechaza la oferta.' }); }
+      newsTo(s, buyer, 'offer', me + ' rechaza tu oferta', me + ' no vende a ' + p.name + ' por ' + U.money(o.fee) + '.', { pid: p.id });
+      return { status: 'rejected' };
+    }
+    if (!linked) { o.status = 'withdrawn'; return { error: 'Tu amigo ya retiró la oferta.' }; }
+    if (!T.window(s).open) return { error: 'El mercado está cerrado.' };
+    if (action === 'counter' && Math.round(amount) > o.fee) {
+      amount = Math.round(amount);
+      o.status = 'countered';
+      o.counter = amount;
+      talk.stage = 'club';
+      talk.humanAsk = amount;
+      talk.asking = amount;
+      talk.offerId = null;
+      talk.rounds.push({ by: 'club', fee: amount, text: me + ' pide ' + U.money(amount) + '. Si ofreces eso, trato hecho.' });
+      newsTo(s, buyer, 'offer', me + ' pide más por ' + p.name, me + ' vendería a ' + p.name + ' por ' + U.money(amount) + '.', { pid: p.id });
+      return { status: 'countered', fee: amount };
+    }
+    if (action !== 'accept' && action !== 'counter') return { error: 'Acción no válida.' };
+    if (T.squadSize(s) <= T.MIN_SQUAD) return { error: 'No puedes quedarte con menos de ' + T.MIN_SQUAD + ' jugadores.' };
+    o.status = 'accepted';
+    talk.stage = 'player';
+    talk.fee = o.fee;
+    talk.rounds.push({ by: 'club', text: me + ' acepta ' + U.money(o.fee) + '. Ahora negocia el contrato con el jugador.' });
+    newsTo(s, buyer, 'offer', me + ' acepta tu oferta', me + ' acepta ' + U.money(o.fee) + ' por ' + p.name + '. Negocia ya su contrato en «Negociaciones».', { pid: p.id });
+    return { status: 'accepted' };
+  }
 
   function loanDestination(s, p) {
     const mine = s.clubs[s.clubId];
@@ -531,6 +637,7 @@
     s.market.fin.expense.releases += cost;
     ledger(s, 'Rescisión de ' + p.name, -cost, 'release');
     C().movePlayer(s, p, null);
+    p.clause = 0;
     club.wageBudget = Math.min(club.wageBudget, C().wageBill(s, s.clubId));
     p.listed = false;
     p.contractEnd = s.season.year + 1;
@@ -546,10 +653,35 @@
     const m = s.market;
     const md = s.week || 0;
     const open = T.window(s).open;
-    m.offers.forEach((o) => { if (o.status === 'pending' && (md > o.expiresMd || !open)) o.status = 'expired'; });
+    m.offers.forEach((o) => {
+      if (o.status !== 'pending' || !(md > o.expiresMd || !open)) return;
+      o.status = 'expired';
+      if (o.human && s.clubs[o.clubId]) {
+        const t = userMarket(s, o.clubId).talks[o.pid];
+        if (t && t.offerId === o.id) { t.stage = 'failed'; t.rounds.push({ by: 'club', text: 'No hubo respuesta: la oferta caduca.' }); }
+      }
+    });
     if (!open) return;
     const squad = C().squad(s, s.clubId).filter((p) => !p.loan);
     if (squad.length <= T.MIN_SQUAD) return;
+    // Un club de la IA puede pagar la cláusula de rescisión de un jugador tuyo (más probable si es baja).
+    const clauseBuy = squad.filter((p) => p.clause > 0).find((p) => {
+      const ratio = p.clause / Math.max(1, T.reference(s, p).value);
+      const prob = ratio <= 1.2 ? 0.12 : ratio <= 1.6 ? 0.04 : ratio <= 2.2 ? 0.01 : 0;
+      return prob && rng.chance(prob);
+    });
+    if (clauseBuy) {
+      const p = clauseBuy;
+      const buyers = Object.values(s.clubs).filter((c) => c.id !== s.clubId && !C().isHuman(s, c.id) && c.budget >= p.clause &&
+        p.ovr >= MCM.generator.baseOvr(c.rep) - 2 && p.ovr <= MCM.generator.baseOvr(c.rep) + 12);
+      if (buyers.length) {
+        const b = rng.pick(buyers);
+        const fee = p.clause;
+        sellTo(s, p, b.id, fee, 'sell');
+        C().news(s, 'transfer', '¡' + b.name + ' paga la cláusula de ' + p.name + '!', b.name + ' deposita los ' + U.money(fee) + ' de su cláusula de rescisión y ' + p.name + ' se marcha. No puedes impedirlo.', { pid: p.id });
+        return;
+      }
+    }
     let made = 0;
     squad.slice().sort((a, b) => (b.listed ? 1 : 0) - (a.listed ? 1 : 0) || b.ovr - a.ovr).forEach((p) => {
       if (made >= 2) return;
@@ -601,6 +733,7 @@
       buyer.budget -= fee;
       seller.budget += fee;
       C().movePlayer(s, target, buyer.id);
+      target.clause = 0;
       target.wage = PL.fairWage(target, buyer.wealth);
       target.contractEnd = s.season.year + T.preferredYears(target);
       record(s, 'ai', target, seller.id, buyer.id, fee);

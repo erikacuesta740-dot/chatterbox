@@ -77,7 +77,8 @@
     html += dealCard(s, p);
     html += H.fc27Card(p, club);
     html += '<section class="kv"><div><span>Valor estimado del juego</span><b>' + U.money(p.value) + '</b></div><div><span>Salario</span><b>' + U.wage(p.wage) + '</b></div>' +
-      '<div><span>Contrato hasta</span><b>' + (p.academy ? 'Juvenil' : 'Jun ' + p.contractEnd) + '</b></div><div><span>Rol</span><b>' + esc(T.ROLE_LABEL[T.role(s, p)] || '—') + '</b></div></section>';
+      '<div><span>Contrato hasta</span><b>' + (p.academy ? 'Juvenil' : 'Jun ' + p.contractEnd) + '</b></div><div><span>Rol</span><b>' + esc(T.ROLE_LABEL[T.role(s, p)] || '—') + '</b></div>' +
+      (p.clause > 0 && p.clubId ? '<div><span>Cláusula de rescisión</span><b>' + U.money(p.clause) + '</b></div>' : '') + '</section>';
     html += '<section class="card"><h3>Estado</h3>' +
       '<div class="attr"><span>Forma física</span>' + UI.bar(p.fitness, 100) + '<b>' + Math.round(p.fitness) + '</b></div>' +
       '<div class="attr"><span>Moral</span>' + UI.bar(p.morale, 100, p.morale < 45 ? 'bad' : 'accent') + '<b>' + Math.round(p.morale) + '</b></div>' +
@@ -105,7 +106,7 @@
       return html;
     }
     if (talk && talk.stage !== 'failed') {
-      html += '<p class="small">Negociación en curso (' + (talk.stage === 'club' ? 'con el club' : 'con el jugador') + ').</p><button class="btn primary block" data-act="talk-open" data-id="' + p.id + '">Continuar negociación</button></section>';
+      html += '<p class="small">Negociación en curso (' + stageLabel(talk) + ').</p><button class="btn primary block" data-act="talk-open" data-id="' + p.id + '">Continuar negociación</button></section>';
       return html;
     }
     if (mine && p.loan && p.loan.parent !== s.clubId) {
@@ -129,11 +130,14 @@
     const d = T.contractDemand(s, p, p.clubId ? 'buy' : 'free');
     const short = s.market.shortlist.includes(p.id);
     html += '<p class="small">' + refLine(s, p) + '</p>';
-    if (p.clubId) html += '<p class="small">Precio que pide ' + esc(s.clubs[p.clubId].name) + ': <b>' + U.money(T.askingPrice(s, p)) + '</b> <span class="muted">(' + esc(T.ROLE_LABEL[T.role(s, p)].toLowerCase()) + ', contrato hasta ' + p.contractEnd + ')</span></p>';
+    const owner = T.humanOwner(s, p);
+    if (owner) html += '<p class="small"><b>Es de ' + esc(s.clubs[owner].name) + ', el club de un amigo de la sala.</b> Tu oferta le llegará a él y decidirá si la acepta. Valor de referencia: ' + U.money(T.askingPrice(s, p)) + '.</p>';
+    else if (p.clubId) html += '<p class="small">Precio que pide ' + esc(s.clubs[p.clubId].name) + ': <b>' + U.money(T.askingPrice(s, p)) + '</b> <span class="muted">(' + esc(T.ROLE_LABEL[T.role(s, p)].toLowerCase()) + ', contrato hasta ' + p.contractEnd + ')</span></p>';
+    if (p.clubId && p.clause > 0) html += '<p class="small">Cláusula de rescisión: <b>' + U.money(p.clause) + '</b>. Si la pagas, ' + (owner ? 'tu amigo' : 'el club') + ' no puede negarse.</p>';
     html += '<p class="small">Pediría unos <b>' + U.wage(d.wage) + '</b> durante ' + d.years + (d.years > 1 ? ' años' : ' año') + ' y ' + U.money(d.bonus) + ' de prima. <span class="' + (w.ok ? 'muted' : '') + '" style="' + (w.ok ? '' : 'color:var(--bad)') + '">' + esc(w.reason) + '</span></p>';
     const err = T.canApproach(s, p);
     html += '<div class="btn-row">' +
-      (p.clubId ? '<button class="btn primary sm" data-act="talk-start" data-kind="buy" data-id="' + p.id + '"' + (err || !w.ok ? ' disabled' : '') + '>Ofertar traspaso</button><button class="btn sm" data-act="talk-start" data-kind="loan" data-id="' + p.id + '"' + (err || !w.ok ? ' disabled' : '') + '>Pedir cesión</button>'
+      (p.clubId ? '<button class="btn primary sm" data-act="talk-start" data-kind="buy" data-id="' + p.id + '"' + (err || !w.ok ? ' disabled' : '') + '>Ofertar traspaso</button><button class="btn sm" data-act="talk-start" data-kind="loan" data-id="' + p.id + '"' + (err || !w.ok || owner ? ' disabled' : '') + '>Pedir cesión</button>'
         : '<button class="btn primary sm" data-act="talk-start" data-kind="free" data-id="' + p.id + '"' + (!w.ok ? ' disabled' : '') + '>Ofrecer contrato</button>') +
       '<button class="btn sm ghost" data-act="shortlist" data-id="' + p.id + '">' + (short ? '★ En seguimiento' : '☆ Seguir') + '</button></div>' +
       (err && p.clubId ? '<p class="small muted">' + esc(err) + '</p>' : '') + '</section>';
@@ -142,6 +146,9 @@
 
   // ---------- Hoja de negociación ----------
   const KIND_LABEL = { buy: 'Traspaso', loan: 'Cesión', free: 'Agente libre', renew: 'Renovación' };
+  function stageLabel(t) {
+    return t.stage === 'waiting' ? 'esperando la respuesta de tu amigo' : t.stage === 'club' ? 'con el club' : t.stage === 'player' ? 'con el jugador' : 'terminada';
+  }
   function talkSheet(pid) {
     const s = App.s;
     const p = s.players[pid];
@@ -156,7 +163,10 @@
       html += '<div class="stack small">' + t.rounds.map((r) => '<div class="row" style="align-items:flex-start"><b style="width:64px;flex:none">' + esc(r.by === 'tú' ? 'Tú' : r.by === 'club' ? 'Club' : 'Jugador') + '</b><span class="grow">' +
         [r.fee != null && t.kind !== 'loan' ? 'Traspaso ' + U.money(r.fee) : '', r.loanYears ? r.loanYears + (r.loanYears > 1 ? ' temporadas' : ' temporada') : '', r.option ? 'opción ' + U.money(r.option) : '', r.wageShare != null ? 'pagas ' + r.wageShare + '% del salario' : '', r.wage != null ? U.wage(r.wage) : '', r.years ? r.years + ' años' : '', r.bonus != null ? 'prima ' + U.money(r.bonus) : '', r.text ? esc(r.text) : ''].filter(Boolean).join(' · ') + '</span></div>').join('') + '</div>';
     }
-    if (t.stage === 'failed') {
+    if (t.stage === 'waiting') {
+      html += '<p class="notice small">Oferta de ' + U.money(t.fee) + ' enviada a ' + esc(club.name) + '. Su dueño la verá en su móvil y podrá aceptarla, pedir más o rechazarla. La respuesta llega al jugar la jornada.</p>' +
+        '<div class="btn-row"><button class="btn" type="button" data-act="sheet-close">Cerrar</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Retirar oferta</button></div>';
+    } else if (t.stage === 'failed') {
       html += '<p class="notice">Negociación terminada sin acuerdo.</p><button class="btn block" data-act="talk-close" data-id="' + pid + '">Cerrar</button>';
     } else if (t.stage === 'club') {
       if (t.kind === 'loan') {
@@ -168,7 +178,9 @@
           '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
       } else {
         html += '<form class="stack" data-submit="talk-club" data-id="' + pid + '">' +
-          '<p class="small">' + esc(club.name) + ' pide <b>' + U.money(t.asking) + '</b>. Puedes ofrecer la cantidad exacta que quieras. Paciencia del club: ' + t.patience + '.</p>' +
+          (t.human ? '<p class="small">' + esc(club.name) + ' es el club de un amigo: decide él. ' + (t.humanAsk ? 'Te pide <b>' + U.money(t.humanAsk) + '</b>; si ofreces eso o más, trato hecho.' : 'Valor de referencia: ' + U.money(t.asking) + '.') + '</p>'
+            : '<p class="small">' + esc(club.name) + ' pide <b>' + U.money(t.asking) + '</b>. Puedes ofrecer la cantidad exacta que quieras. Paciencia del club: ' + t.patience + '.</p>') +
+          (p.clause > 0 ? '<p class="small">Cláusula de rescisión: <b>' + U.money(p.clause) + '</b>. Si ofreces esa cantidad, se paga la cláusula y no pueden negarse.</p>' : '') +
           '<label class="field" for="tk-fee">Tu oferta (€)<input class="input" id="tk-fee" name="fee" type="number" inputmode="numeric" min="0" step="1" value="' + Math.round(t.asking * 0.9) + '"></label>' +
           '<div class="btn-row"><button class="btn primary" type="submit">Enviar oferta</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
       }
@@ -180,7 +192,9 @@
         (t.kind === 'loan' ? '' :
           '<label class="field" for="tk-wage">Salario (€/semana)<input class="input" id="tk-wage" name="wage" type="number" inputmode="numeric" min="0" step="1" value="' + d.wage + '"></label>' +
           '<div class="grid-2"><label class="field" for="tk-years">Años<select class="input" id="tk-years" name="years">' + [1, 2, 3, 4, 5].map((y) => '<option' + (y === d.years ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></label>' +
-          '<label class="field" for="tk-bonus">Prima de firma (€)<input class="input" id="tk-bonus" name="bonus" type="number" inputmode="numeric" min="0" step="1" value="' + d.bonus + '"></label></div>') +
+          '<label class="field" for="tk-bonus">Prima de firma (€)<input class="input" id="tk-bonus" name="bonus" type="number" inputmode="numeric" min="0" step="1" value="' + d.bonus + '"></label></div>' +
+          '<label class="field" for="tk-clause">Cláusula de rescisión (€, 0 = sin cláusula)<input class="input" id="tk-clause" name="clause" type="number" inputmode="numeric" min="0" step="1" value="' + (t.kind === 'renew' && p.clause ? p.clause : 0) + '"></label>' +
+          '<p class="small muted">Con cláusula, cualquier club (o amigo) que la pague se lo lleva sin que puedas negarte; cuanto más baja, más riesgo. Al jugador le gusta tenerla. Recomendada: al menos ' + U.money(T.clauseHint(s, p)) + '.</p>') +
         (t.fee ? '<p class="small muted">Traspaso acordado: ' + U.money(t.fee) + '. Se paga al firmar.</p>' : '') +
         '<div class="btn-row"><button class="btn primary" type="submit">' + (t.kind === 'loan' ? 'Confirmar cesión' : 'Ofrecer contrato') + '</button><button class="btn ghost" type="button" data-act="talk-cancel" data-id="' + pid + '">Abandonar</button></div></form>';
     }
@@ -201,13 +215,15 @@
     const pid = form.dataset.id;
     const r = T.offerClub(App.s, pid, Number(fd.get('fee') || 0), Number(fd.get('share') || 0), { years: Number(fd.get('loanYears') || 1), option: Number(fd.get('option') || 0) });
     if (r.error) { H.toast(r.error); return; }
+    if (r.status === 'sent') H.toast('Oferta enviada a tu amigo');
+    else if (r.clause) H.toast('Cláusula pagada');
     await H.persist();
     App.render();
     talkSheet(pid);
   };
   F['talk-player'] = async (fd, form) => {
     const pid = form.dataset.id;
-    const r = T.offerContract(App.s, pid, { wage: Number(fd.get('wage') || 0), years: Number(fd.get('years') || 1), bonus: Number(fd.get('bonus') || 0) });
+    const r = T.offerContract(App.s, pid, { wage: Number(fd.get('wage') || 0), years: Number(fd.get('years') || 1), bonus: Number(fd.get('bonus') || 0), clause: Number(fd.get('clause') || 0) });
     if (r.error) { H.toast(r.error); return; }
     await H.persist();
     if (r.status === 'done') { H.closeSheet(); H.toast('¡Acuerdo cerrado!'); App.render(); return; }
@@ -302,8 +318,8 @@
       const c = s.clubs[o.clubId];
       if (!p || !c) return '';
       const pending = o.status === 'pending';
-      const label = { pending: 'Pendiente', accepted: 'Aceptada', rejected: 'Rechazada', expired: 'Caducada', withdrawn: 'Retirada' }[o.status];
-      return '<div class="card flat" style="padding:12px"><div class="row">' + UI.crest(c, 26) + '<div class="grow"><b>' + esc(c.name) + '</b><div class="small">' + (o.type === 'loan' ? 'Cesión de ' : 'Traspaso de ') + '<button data-act="player" data-id="' + p.id + '" style="border:0;background:none;padding:0;font-weight:700;color:inherit;text-decoration:underline">' + esc(p.name) + '</button>' + (o.type === 'loan' ? '' : ' por <b>' + U.money(o.fee) + '</b>') + '</div>' +
+      const label = { pending: 'Pendiente', accepted: o.human ? 'Aceptada: falta el contrato' : 'Aceptada', rejected: 'Rechazada', expired: 'Caducada', withdrawn: 'Retirada', countered: 'Pides ' + U.money(o.counter || 0) }[o.status];
+      return '<div class="card flat" style="padding:12px"><div class="row">' + UI.crest(c, 26) + '<div class="grow"><b>' + esc(c.name) + '</b>' + (o.human ? ' <span class="pill info">amigo</span>' : '') + '<div class="small">' + (o.type === 'loan' ? 'Cesión de ' : 'Traspaso de ') + '<button data-act="player" data-id="' + p.id + '" style="border:0;background:none;padding:0;font-weight:700;color:inherit;text-decoration:underline">' + esc(p.name) + '</button>' + (o.type === 'loan' ? '' : ' por <b>' + U.money(o.fee) + '</b>') + '</div>' +
         '<div class="small muted">' + refLine(s, p) + '</div></div><span class="pill ' + (pending ? 'warn' : o.status === 'accepted' ? 'good' : 'mute') + '">' + label + '</span></div>' +
         (pending ? '<div class="btn-row"><button class="btn primary sm" data-act="offer-accept" data-id="' + o.id + '">Aceptar</button>' +
           (o.type === 'buy' ? '<button class="btn sm" data-act="offer-counter" data-id="' + o.id + '">Pedir más</button>' : '') +
@@ -316,7 +332,7 @@
     if (!talks.length) return '<section class="card empty"><p>No hay negociaciones abiertas.</p></section>';
     return '<section class="card"><h3>Negociaciones</h3><div class="plist">' + talks.map((t) => {
       const p = s.players[t.pid];
-      return p ? '<button class="prow" data-act="talk-open" data-id="' + p.id + '">' + UI.ovr(p.ovr) + '<span class="grow"><span class="name">' + esc(p.name) + '</span><span class="meta" style="display:block">' + esc(KIND_LABEL[t.kind]) + ' · ' + (t.stage === 'club' ? 'con el club' : t.stage === 'player' ? 'con el jugador' : 'terminada') + '</span></span></button>' : '';
+      return p ? '<button class="prow" data-act="talk-open" data-id="' + p.id + '">' + UI.ovr(p.ovr) + '<span class="grow"><span class="name">' + esc(p.name) + '</span><span class="meta" style="display:block">' + esc(KIND_LABEL[t.kind]) + ' · ' + stageLabel(t) + '</span></span></button>' : '';
     }).join('') + '</div></section>';
   }
 
@@ -340,13 +356,13 @@
     const s = App.s;
     const o = s.market.offers.find((x) => x.id === d.id);
     const p = s.players[o.pid];
-    H.confirmSheet({ title: (o.type === 'loan' ? 'Ceder a ' : 'Vender a ') + p.name, body: o.type === 'loan' ? p.name + ' jugará cedido en ' + s.clubs[o.clubId].name + ' hasta junio.' : p.name + ' se marchará a ' + s.clubs[o.clubId].name + ' por ' + U.money(o.fee) + '. No se puede deshacer.', yes: o.type === 'loan' ? 'Aceptar cesión' : 'Aceptar venta',
-      onYes: async () => { const r = T.respondOffer(s, d.id, 'accept'); if (r.error) { H.toast(r.error); return; } await H.persist(); H.toast('Operación cerrada'); App.render(); } });
+    H.confirmSheet({ title: (o.type === 'loan' ? 'Ceder a ' : 'Vender a ') + p.name, body: o.human ? 'Aceptas ' + U.money(o.fee) + ' de ' + s.clubs[o.clubId].name + '. Tu amigo podrá cerrar el contrato con ' + p.name + ' y entonces se marchará.' : o.type === 'loan' ? p.name + ' jugará cedido en ' + s.clubs[o.clubId].name + ' hasta junio.' : p.name + ' se marchará a ' + s.clubs[o.clubId].name + ' por ' + U.money(o.fee) + '. No se puede deshacer.', yes: o.type === 'loan' ? 'Aceptar cesión' : 'Aceptar venta',
+      onYes: async () => { const r = T.respondOffer(s, d.id, 'accept'); if (r.error) { H.toast(r.error); return; } await H.persist(); H.toast(o.human ? 'Oferta aceptada: tu amigo cerrará el contrato' : 'Operación cerrada'); App.render(); } });
   };
   A['offer-reject'] = async (d) => { T.respondOffer(App.s, d.id, 'reject'); await H.persist(); App.render(); };
   A['offer-counter'] = (d) => {
     const o = App.s.market.offers.find((x) => x.id === d.id);
-    H.sheet('<h2>Pedir más</h2><p class="small">Oferta actual: ' + U.money(o.fee) + '. Si pides demasiado, el club puede retirarla.</p><form class="stack" data-submit="offer-counter" data-id="' + o.id + '">' +
+    H.sheet('<h2>Pedir más</h2><p class="small">Oferta actual: ' + U.money(o.fee) + '. ' + (o.human ? 'Tu amigo verá lo que pides y decidirá si lo paga.' : 'Si pides demasiado, el club puede retirarla.') + '</p><form class="stack" data-submit="offer-counter" data-id="' + o.id + '">' +
       '<label class="field" for="oc-fee">Cantidad que pides (€)<input class="input" id="oc-fee" name="fee" type="number" inputmode="numeric" step="1" value="' + T.roundMoney(o.fee * 1.2) + '"></label>' +
       '<div class="btn-row"><button class="btn" type="button" data-act="sheet-close">Cancelar</button><button class="btn primary" type="submit">Enviar</button></div></form>');
   };
@@ -354,7 +370,7 @@
     const r = T.respondOffer(App.s, form.dataset.id, 'counter', Number(fd.get('fee') || 0));
     H.closeSheet();
     if (r.error) H.toast(r.error);
-    else H.toast(r.status === 'accepted' ? 'Aceptan: venta cerrada por ' + U.money(r.fee || 0) : r.status === 'counter' ? 'Mejoran su oferta a ' + U.money(r.fee) : 'Retiran la oferta');
+    else H.toast(r.status === 'accepted' ? 'Aceptan: venta cerrada por ' + U.money(r.fee || 0) : r.status === 'counter' ? 'Mejoran su oferta a ' + U.money(r.fee) : r.status === 'countered' ? 'Se lo dices a tu amigo: pides ' + U.money(r.fee) : 'Retiran la oferta');
     await H.persist();
     App.render();
   };

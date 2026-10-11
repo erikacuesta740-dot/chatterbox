@@ -291,3 +291,62 @@ test('modo online: clubes creados con las estrellas de la sala y fichajes que vi
   for (let i = 0; i < 6; i++) O.step(s);
   assert.deepStrictEqual(C.validate(s), []);
 });
+
+test('cláusula de rescisión y ofertas entre amigos (el dueño decide)', () => {
+  const O = MCM.online;
+  const T = MCM.market;
+  const s = O.createWorld({ leagueId: 'ESP1', clubId: 'real-madrid', seed: 'on3', code: 'TEST3' });
+  O.addHuman(s, 'fc-barcelona');
+  s.date = s.season.year + '-07-15';
+  // Barça (amigo) quiere a un jugador del Madrid: la oferta llega al dueño, no a la IA.
+  const target = C.squad(s, 'real-madrid').filter((p) => !p.loan).sort((a, b) => a.value - b.value)[5];
+  const fee0 = T.askingPrice(s, target);
+  const out = C.asUser(s, 'fc-barcelona', () => {
+    const st = T.start(s, target.id, 'buy');
+    assert.ok(st.talk && st.talk.human === 'real-madrid');
+    assert.ok(T.start(s, C.squad(s, 'real-madrid')[0].id, 'loan').error, 'no se piden cesiones a amigos');
+    return T.offerClub(s, target.id, Math.round(fee0 * 0.5));
+  });
+  assert.strictEqual(out.status, 'sent');
+  const o = s.market.offers.find((x) => x.human && x.pid === target.id);
+  assert.ok(o && o.status === 'pending' && o.clubId === 'fc-barcelona');
+  // El dueño pide más, el amigo lo paga y firma al jugador.
+  assert.strictEqual(T.respondOffer(s, o.id, 'counter', fee0).status, 'countered');
+  const b0 = s.clubs['real-madrid'].budget;
+  const done = C.asUser(s, 'fc-barcelona', () => {
+    assert.strictEqual(T.offerClub(s, target.id, fee0).status, 'accepted');
+    return T.offerContract(s, target.id, Object.assign({}, T.talkFor(s, target.id).demand, { clause: 50e6 }));
+  });
+  assert.strictEqual(done.status, 'done');
+  assert.strictEqual(target.clubId, 'fc-barcelona');
+  assert.strictEqual(target.clause, 50e6);
+  assert.strictEqual(s.clubs['real-madrid'].budget, b0 + fee0);
+  assert.ok(s.market.fin.income.sales >= fee0, 'la venta cuenta en las finanzas del dueño');
+  // Pagar la cláusula: el dueño no puede negarse.
+  const st2 = T.start(s, target.id, 'buy');
+  assert.strictEqual(st2.talk.human, 'fc-barcelona');
+  assert.strictEqual(T.offerClub(s, target.id, 50e6).status, 'accepted');
+  assert.strictEqual(T.talkFor(s, target.id).fee, 50e6);
+  T.cancel(s, target.id);
+  // Rechazo
+  const t2 = C.squad(s, 'real-madrid').filter((p) => !p.loan)[8];
+  C.asUser(s, 'fc-barcelona', () => { T.start(s, t2.id, 'buy'); T.offerClub(s, t2.id, 1000); });
+  const o2 = s.market.offers.find((x) => x.human && x.pid === t2.id && x.status === 'pending');
+  T.respondOffer(s, o2.id, 'reject');
+  assert.strictEqual(C.asUser(s, 'fc-barcelona', () => T.talkFor(s, t2.id).stage), 'failed');
+  assert.deepStrictEqual(C.validate(s), []);
+});
+
+test('cláusula en el modo normal: se guarda al fichar y una IA puede pagarla', () => {
+  const T = MCM.market;
+  const s = C.create({ dataset: MCM.DATA.realDataset(), clubId: 'real-betis', seed: 'cl1' });
+  s.settings.autoFix = true;
+  const p = C.squad(s, 'getafe-cf').filter((x) => !x.loan).sort((a, b) => a.value - b.value)[4];
+  const { talk } = T.start(s, p.id, 'buy');
+  T.offerClub(s, p.id, talk.asking);
+  assert.strictEqual(T.offerContract(s, p.id, Object.assign({}, T.talkFor(s, p.id).demand, { clause: 1 })).status, 'done');
+  assert.strictEqual(p.clause, 1);
+  let gone = false;
+  for (let w = 1; w <= 40 && !gone; w++) { s.week = w; T.weekly(s); gone = p.clubId !== 'real-betis'; }
+  assert.ok(gone, 'con una cláusula ridícula, alguien la paga');
+});

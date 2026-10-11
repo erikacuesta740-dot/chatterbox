@@ -133,6 +133,7 @@ const MOCK = ({ uid, name }) => {
     await b.waitForTimeout(1200);
     await b.evaluate(() => MCM.app.go('hub', {}, { root: true }));
 
+    const deal = {};
     for (let j = 1; j <= 4; j++) {
       step('jornada ' + j + ': los dos pulsan «Listo»');
       const rev0 = await a.evaluate(() => MCM.app.ui.online.room.rev);
@@ -150,8 +151,34 @@ const MOCK = ({ uid, name }) => {
       const info = await a.evaluate(() => { const s = MCM.app.s; const res = MCM.app.ui.online.room.last.results; return { date: s.date, n: res.length, txt: res.map((r) => s.clubs[r.home].short + ' ' + r.hg + '-' + r.ag + ' ' + s.clubs[r.away].short).join(', ') }; });
       console.log('  ', info.date, info.txt);
       if (!info.n) throw new Error('La jornada no tiene resultados de los jugadores');
+      if (j === 1) {
+        step('la tercera jugadora ofrece dinero por un jugador de Erika (decide Erika, no la máquina)');
+        deal.pid = await c.evaluate(() => {
+          const s = MCM.app.s; const T = MCM.market;
+          const p = MCM.career.squad(s, 'albacete-balompie').filter((x) => !x.loan).sort((x, y) => x.value - y.value)[6];
+          T.start(s, p.id, 'buy'); const r = T.offerClub(s, p.id, Math.round(T.askingPrice(s, p) * 0.7));
+          if (r.status !== 'sent') throw new Error('oferta ' + JSON.stringify(r));
+          return p.id;
+        });
+      } else if (j === 2) {
+        step('a Erika le llega la oferta de su amiga y la acepta');
+        await a.evaluate(() => MCM.app.go('market', {}));
+        await a.click('[data-act="mk-tab"][data-v="offers"]');
+        await a.waitForSelector('[data-act="offer-accept"]');
+        const r = await a.evaluate((pid) => { const s = MCM.app.s; const o = s.market.offers.find((x) => x.human && x.pid === pid && x.status === 'pending'); return o ? MCM.market.respondOffer(s, o.id, 'accept') : { error: 'sin oferta' }; }, deal.pid);
+        if (r.status !== 'accepted') throw new Error('aceptar ' + JSON.stringify(r));
+        await a.evaluate(() => MCM.app.go('hub', {}, { root: true }));
+      } else if (j === 3) {
+        step('la amiga cierra el contrato con el jugador (con cláusula)');
+        const r = await c.evaluate((pid) => { const s = MCM.app.s; const T = MCM.market; const t = T.talkFor(s, pid); if (!t || t.stage !== 'player') return { error: 'talk ' + (t && t.stage) }; return T.offerContract(s, pid, Object.assign({}, t.demand, { clause: 30e6 })); }, deal.pid);
+        if (r.status !== 'done') throw new Error('contrato ' + JSON.stringify(r));
+      }
     }
 
+    for (const pg of [a, b, c]) {
+      const x = await pg.evaluate((pid) => ({ club: MCM.app.s.players[pid].clubId, clause: MCM.app.s.players[pid].clause }), deal.pid);
+      if (x.club !== 'real-zaragoza' || x.clause !== 30e6) throw new Error('Traspaso entre amigos no aplicado: ' + JSON.stringify(x));
+    }
     step('el fichaje del amigo está en el mundo de todos');
     for (const pg of [a, b, c]) {
       const who = await pg.evaluate((pid) => MCM.app.s.players[pid].clubId, signed.pid);
