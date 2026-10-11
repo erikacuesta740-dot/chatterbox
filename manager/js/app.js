@@ -48,6 +48,13 @@
   }
   function closeSheet() { const sc = $('#sheet'); sc.hidden = true; sc.innerHTML = ''; }
   App.closeSheet = closeSheet;
+  // Botón «atrás» de Android: cierra la hoja abierta o vuelve a la pantalla anterior. false = salir de la app.
+  App.androidBack = function () {
+    const sh = document.getElementById('sheet');
+    if (sh && !sh.hidden) { closeSheet(); return true; }
+    if (App.stack.length) { App.back(); return true; }
+    return false;
+  };
 
   // Confirmación propia (los diálogos nativos no funcionan en todos los visores)
   let pendingConfirm = null;
@@ -146,7 +153,9 @@
 
   VIEWS.start = function () {
     const last = App.metas[0];
-    let html = '<section class="brand"><span class="eyebrow">Simulador de gestión</span><h1>Modo Carrera<br><em>Manager</em></h1>' +
+    // Portada personal (solo en compilaciones que la incluyen, p. ej. la app Android).
+    let html = window.MCM_COVER ? '<section class="cover"><img src="' + window.MCM_COVER + '" alt="Portada"></section>' : '';
+    html += '<section class="brand"><span class="eyebrow">Simulador de gestión</span><h1>Modo Carrera<br><em>Manager</em></h1>' +
       '<p class="muted">Eres entrenador y director deportivo. Tú decides; los partidos se simulan.</p></section>';
     if (last) {
       html += '<section class="card"><span class="eyebrow">Continuar carrera</span>' + careerCardInner(last) +
