@@ -32,7 +32,7 @@
       'Erik Botheim|DC|2000|69|71|NOR', 'Isaac Kiese Thelin|DC|1992|67|67|SWE',
     ],
     'djurgarden': [
-      'Jacob Widell Zetterström|POR|1998|67|69|SWE', 'Marcus Danielson|DFC|1989|66|66|SWE', 'Miro Tenho|DFC|1995|65|65|FIN',
+      'Marcus Danielson|DFC|1989|66|66|SWE', 'Miro Tenho|DFC|1995|65|65|FIN',
       'Adam Ståhl|LI|1994|64|64|FIN', 'Keita Kosugi|LD|2006|62|72|JPN', 'Rasmus Schüller|MCD|1991|65|65|FIN',
       'Magnus Eriksson|MCO|1990|66|66|SWE', 'Tobias Gulliksen|MCO|2003|66|72|NOR', 'Patric Åslund|DC|2000|63|65|SWE',
       'Tokmac Nguen|ED|1993|66|66|NOR', 'August Priske|DC|2004|65|72|DEN',
