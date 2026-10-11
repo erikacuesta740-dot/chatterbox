@@ -217,6 +217,11 @@
   MCM.DATA.addLeague = function (def, rosters) {
     const list = MCM.DATA.leagues;
     if (list.some((L) => L.id === def.id)) return;
+    if (def.tier === 1 && def.uefa !== false && def.spots) {
+      def.ucl = def.spots.UCL || 0;
+      def.euro = (def.spots.UCL || 0) + (def.spots.UEL || 0) + (def.spots.UECL || 0);
+    }
+    if (def.uefa === false) { def.ucl = 0; def.euro = 0; }
     if (def.upper) {
       const up = list.find((L) => L.id === def.upper);
       if (up) { up.lower = def.id; up.relegate = def.upperRelegate || 0; }

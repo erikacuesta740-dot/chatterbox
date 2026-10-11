@@ -260,24 +260,30 @@
 
   // ---------- Competiciones europeas ----------
   /* Clasificados: posiciones de liga (temporada anterior) + campeones de copa + clubes europeos adicionales. */
+  /* Plazas europeas por liga: { UCL, UEL, UECL }. Las cinco grandes, 4/2/2 salvo que la liga diga otra cosa. */
+  K.spots = function (L) {
+    if (L.tier !== 1 || L.uefa === false) return { UCL: 0, UEL: 0, UECL: 0 };
+    return Object.assign({ UCL: 4, UEL: 2, UECL: 2 }, L.spots || {});
+  };
   K.qualify = function (s, tables, cupWinners) {
     const q = { UCL: [], UEL: [], UECL: [] };
     const used = new Set();
-    const tier1 = Object.values(s.leagues).filter((L) => L.tier === 1);
-    tier1.forEach((L) => {
-      const order = tables[L.id];
-      order.slice(0, 4).forEach((id) => { q.UCL.push(id); used.add(id); });
+    const uefa = Object.values(s.leagues).filter((L) => L.tier === 1 && L.uefa !== false && tables[L.id]);
+    uefa.forEach((L) => {
+      tables[L.id].slice(0, K.spots(L).UCL).forEach((id) => { q.UCL.push(id); used.add(id); });
     });
-    tier1.forEach((L) => {
+    uefa.forEach((L) => {
+      const n = K.spots(L).UEL;
+      if (!n) return;
       const cw = cupWinners && cupWinners[L.nat];
-      if (cw && !used.has(cw) && s.clubs[cw] && s.clubs[cw].leagueId === L.id) { q.UEL.push(cw); used.add(cw); }
-      const rest = tables[L.id].filter((id) => !used.has(id));
-      const need = cw && q.UEL.includes(cw) ? 1 : 2;
-      rest.slice(0, need).forEach((id) => { q.UEL.push(id); used.add(id); });
+      let need = n;
+      if (cw && !used.has(cw) && s.clubs[cw] && s.clubs[cw].leagueId === L.id) { q.UEL.push(cw); used.add(cw); need--; }
+      tables[L.id].filter((id) => !used.has(id)).slice(0, need).forEach((id) => { q.UEL.push(id); used.add(id); });
     });
-    tier1.forEach((L) => {
-      tables[L.id].filter((id) => !used.has(id)).slice(0, 2).forEach((id) => { q.UECL.push(id); used.add(id); });
+    uefa.forEach((L) => {
+      tables[L.id].filter((id) => !used.has(id)).slice(0, K.spots(L).UECL).forEach((id) => { q.UECL.push(id); used.add(id); });
     });
+    ['UCL', 'UEL', 'UECL'].forEach((k) => { if (q[k].length > 36) q[k].length = 36; });
     const rng = U.rng(s.seed + ':q:' + s.season.year);
     const extras = Object.values(s.clubs).filter((c) => c.ext).map((c) => ({ id: c.id, k: c.rep + rng.range(-4, 4) })).sort((a, b) => b.k - a.k).map((x) => x.id);
     ['UCL', 'UEL', 'UECL'].forEach((k) => {
@@ -286,6 +292,7 @@
     });
     return q;
   };
+
 
   function leaguePhase(s, comp, teams, rng) {
     const games = comp.games;

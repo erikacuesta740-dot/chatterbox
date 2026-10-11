@@ -102,8 +102,10 @@
         let obj;
         if (L.tier === 1) {
           if (rank === 1) obj = { code: 'title', text: 'Ganar la liga', target: 1 };
-          else if (rank <= 4) obj = { code: 'ucl', text: 'Terminar entre los ' + L.ucl + ' primeros', target: L.ucl };
-          else if (rank <= 8) obj = { code: 'euro', text: 'Clasificarse para Europa (top ' + L.euro + ')', target: L.euro };
+          else if (rank <= 4 && L.ucl) obj = { code: 'ucl', text: 'Terminar entre los ' + L.ucl + ' primeros', target: L.ucl };
+          else if (rank <= 8 && L.euro) obj = { code: 'euro', text: 'Clasificarse para Europa (top ' + L.euro + ')', target: L.euro };
+          else if (rank <= 4) obj = { code: 'top4', text: 'Terminar entre los 4 primeros', target: 4 };
+          else if (rank <= 8) obj = { code: 'top8', text: 'Terminar entre los 8 primeros', target: 8 };
           else if (rank <= n - 5) obj = { code: 'mid', text: 'Terminar en la mitad alta de la tabla', target: Math.ceil(n / 2) + 2 };
           else obj = { code: 'survive', text: L.relegate ? 'Evitar el descenso' : 'Evitar los 3 últimos puestos', target: n - Math.max(3, L.relegate) };
         } else {

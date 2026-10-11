@@ -210,7 +210,10 @@
       (cur === 'real' ? '<p class="notice small">Jugadores reales de Primera, Premier League, Championship y Ligue 1 según lo que sabe el asistente hasta mediados de 2026. Medias y potenciales estimados, no de FC 27; puede faltar algún fichaje reciente. Segunda, Serie A, Bundesliga, agentes libres y clubes europeos invitados aún son ficticios.</p>' : '');
     if (!App.ui.newClub) {
       const clubs = L.clubs.map(clubRow).sort((a, b) => b.rep - a.rep);
-      const html = dsChips + '<div class="chips" role="tablist">' + leagues.map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + esc(l.id) + '">' + esc(l.name) + ' · ' + esc(l.country) + '</button>').join('') + '</div>' +
+      const countries = Array.from(new Set(leagues.map((l) => l.country)));
+      const html = dsChips + '<label class="field" for="nc-country">País<select class="input" id="nc-country" data-change="new-country">' +
+        countries.map((c) => '<option' + (c === L.country ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></label>' +
+        '<div class="chips" role="tablist">' + leagues.filter((l) => l.country === L.country).map((l) => '<button class="chip ' + (l.id === L.id ? 'on' : '') + '" data-act="new-league" data-id="' + esc(l.id) + '">' + esc(l.name) + '</button>').join('') + '</div>' +
         '<section class="card"><div class="section-head"><h2>Elige club</h2><span class="small muted">' + clubs.length + ' clubes</span></div><div class="plist">' +
         clubs.map((c) => {
           const lvl = Math.round(MCM.generator.baseOvr(c.rep) + 2);
@@ -727,6 +730,7 @@
   };
 
   const CHANGES = {
+    'new-country': (el) => { const l = activeDataset().leagues.find((x) => x.country === el.value); if (l) App.ui.newLeague = l.id; App.render(); },
     taker: async (el) => {
       const club = C.userClub(App.s);
       club.takers = Object.assign(C.takers(App.s, App.s.clubId), club.takers || {});

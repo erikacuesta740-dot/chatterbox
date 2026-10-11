@@ -179,7 +179,17 @@
     const userL = C.userClub(s).leagueId;
     const ids = [userL].concat(Object.keys(s.leagues).filter((x) => x !== userL)).concat(K.all(s).filter((c) => c.type === 'euro').map((c) => c.id)).concat(K.all(s).filter((c) => c.type === 'cup').map((c) => c.id)).concat(K.all(s).filter((c) => c.type === 'playoff').map((c) => c.id));
     const sel = App.ui.comp.id && (s.leagues[App.ui.comp.id] || s.comps[App.ui.comp.id]) ? App.ui.comp.id : userL;
-    let html = '<div class="chips">' + ids.map((id) => '<button class="chip ' + (id === sel ? 'on' : '') + '" data-act="comp-sel" data-v="' + esc(id) + '">' + esc(K.compName(s, id)) + '</button>').join('') + '</div>';
+    // Chips: tus competiciones; el resto de ligas y torneos, en un desplegable por país.
+    const mine = K.clubComps(s, s.clubId);
+    const chipIds = ids.filter((id) => mine.includes(id) || id === sel);
+    const byCountry = {};
+    ids.filter((id) => !chipIds.includes(id)).forEach((id) => {
+      const g = s.leagues[id] ? s.leagues[id].country : 'Copas y torneos';
+      (byCountry[g] = byCountry[g] || []).push(id);
+    });
+    let html = '<div class="chips">' + chipIds.map((id) => '<button class="chip ' + (id === sel ? 'on' : '') + '" data-act="comp-sel" data-v="' + esc(id) + '">' + esc(K.compName(s, id)) + '</button>').join('') + '</div>' +
+      '<label class="field" for="comp-pick">Otras competiciones<select class="input" id="comp-pick" data-change="comp-pick"><option value="">Elige liga o torneo…</option>' +
+      Object.keys(byCountry).map((g) => '<optgroup label="' + esc(g) + '">' + byCountry[g].map((id) => '<option value="' + esc(id) + '">' + esc(K.compName(s, id)) + '</option>').join('') + '</optgroup>').join('') + '</select></label>';
     if (s.leagues[sel]) html += leagueBlock(s, s.leagues[sel]);
     else if (s.comps[sel].type === 'cup') html += cupBlock(s, s.comps[sel]);
     else if (s.comps[sel].type === 'playoff') html += playoffBlock(s, s.comps[sel]);
@@ -188,6 +198,7 @@
   };
   A['comp-sel'] = (d) => { App.ui.comp.id = d.v; App.ui.comp.tab = 'table'; App.render(); };
   A['comp-tab'] = (d) => { App.ui.comp.tab = d.v; App.render(); };
+  App.CHANGES['comp-pick'] = (el) => { if (!el.value) return; App.ui.comp.id = el.value; App.ui.comp.tab = 'table'; App.render(); };
 
   function leagueBlock(s, L) {
     const tab = App.ui.comp.tab;
