@@ -37,7 +37,7 @@
       'Nasser Djiga|DFC|2002|70|75|BFA', 'Jayden Meghoma|LI|2006|65|74|ENG', 'Ridvan Yılmaz|LI|2001|69|72|TUR',
       'Connor Barron|MCD|2002|70|74|SCO', 'Nicolas Raskin|MC|2001|72|74|BEL', 'Mohamed Diomande|MC|2001|73|76|CIV',
       'Joe Rothwell|MC|1995|68|68|ENG', 'Lyall Cameron|MC|2003|67|72|SCO', 'Thelo Aasgaard|MCO|2002|70|74|NOR',
-      'Kieran Dowell|MCO|1997|67|67|ENG', 'Oliver Antman|ED|2001|70|73|FIN', 'Djeidi Gassama|EI|2003|71|76|FRA',
+ 'Oliver Antman|ED|2001|70|73|FIN', 'Djeidi Gassama|EI|2003|71|76|FRA',
       'Mikey Moore|EI|2007|68|80|ENG', 'Danilo|DC|1999|70|71|BRA', 'Cyriel Dessers|DC|1994|71|71|NGA',
       'Bojan Miovski|DC|1999|70|71|MKD', 'Youssef Chermiti|DC|2004|69|76|POR',
     ],
@@ -64,7 +64,7 @@
       'Rocky Bushiri|DFC|1999|65|66|COD', 'Jack Iredale|DFC|1996|64|64|AUS', 'Grant Hanley|DFC|1991|67|67|SCO',
       'Nicky Cadden|LI|1996|65|65|IRL', 'Joe Newell|MC|1993|65|65|ENG', 'Dylan Levitt|MC|2000|65|67|WAL',
       'Josh Campbell|MC|2000|65|66|SCO', 'Miguel Chaiwa|MCD|2004|62|69|ZAM', 'Jamie McGrath|MCO|1996|66|66|IRL',
-      'Martin Boyle|ED|1993|67|67|AUS', 'Junior Hoilett|EI|1990|63|63|CAN', 'Kieron Bowie|DC|2002|66|70|SCO',
+      'Martin Boyle|ED|1993|67|67|AUS', 'Junior Hoilett|EI|1990|63|63|CAN',
       'Thibault Klidjé|DC|2001|64|67|TOG',
     ],
     'dundee-united': [
@@ -76,7 +76,7 @@
     motherwell: [
       'Calum Ward|POR|2000|61|64|ENG',
       'Stephen O\'Donnell|LD|1992|62|62|SCO', 'Paul McGinn|DFC|1990|62|62|SCO', 'Liam Gordon|DFC|1999|62|63|SCO',
-      'Elliot Watt|MC|2000|64|66|SCO', 'Lukas Fadinger|MC|2000|63|65|AUT', 'Tom Sparrow|MC|2002|61|65|WAL',
+      'Elliot Watt|MC|2000|64|66|SCO', 'Lukas Fadinger|MC|2000|63|65|AUT',
       'Tawanda Maswanhise|ED|2002|65|69|ZIM', 'Apostolos Stamatelopoulos|DC|1999|63|64|AUS',
     ],
     'st-mirren': [
